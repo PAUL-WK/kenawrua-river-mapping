@@ -175,6 +175,13 @@ table.attr tbody tr.sel{background:#06b6d422}
 .leaflet-tooltip.tip{background:var(--panel);color:#cbd5e1;border:1px solid var(--line);font-size:11px;padding:2px 7px;box-shadow:none}
 .leaflet-tooltip.tip:before{display:none}
 
+/* permanent site/WRUA name labels next to each marker — hidden until zoomed in past the
+   whole-country overview (toggled by JS via .hide-labels on #map), otherwise 100+ labels overlap */
+.leaflet-tooltip.site-label{background:#0f172ae6;color:#e2e8f0;border:1px solid var(--line-soft);font-size:10.5px;
+  font-weight:600;padding:1px 6px;box-shadow:0 1px 4px #00000066;pointer-events:none}
+.leaflet-tooltip.site-label:before{display:none}
+#map.hide-labels .leaflet-tooltip.site-label{display:none}
+
 /* full dashboard view */
 #view-dash{overflow-y:auto;padding:24px 32px}
 .dash-wrap{width:100%;display:flex;flex-direction:column;gap:20px}
