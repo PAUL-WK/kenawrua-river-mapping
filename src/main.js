@@ -222,6 +222,12 @@ function selectSite(layerId, id, opts = {}) {
     // but don't force it open just because a point was clicked on the map.
     openTable(layerId);
   }
+  // keep the detail panel in sync too: if it's already open (showing some other feature),
+  // selecting a new one — from the table or by clicking another marker — should refresh it
+  // in place rather than leaving it stuck on the previous feature.
+  if (document.getElementById('detail-panel').classList.contains('open')) {
+    updateDetailPanel(layerId, id);
+  }
 }
 
 // brief double-pulse highlight on the marker just flown to
@@ -239,14 +245,20 @@ function flashMarker(m) {
   pulse();
 }
 
-// popup "expand" icon → right-hand detail panel instead of staying as a small popup
-window.hlOpenDetail = function (layerId, id) {
+// fills the detail panel's content for a given feature, without touching whether it's open —
+// shared by the popup's "expand" action and by selectSite's keep-in-sync refresh above.
+function updateDetailPanel(layerId, id) {
   const layer = layerById(layerId);
   const s = layer.data.find(x => x.id === id);
   if (!s) return;
   document.getElementById('detail-panel-title').textContent = s.name;
   document.getElementById('detail-panel-sub').textContent = layer.label;
   document.getElementById('detail-panel-body').innerHTML = layer.detail(s);
+}
+
+// popup "expand" icon → right-hand detail panel instead of staying as a small popup
+window.hlOpenDetail = function (layerId, id) {
+  updateDetailPanel(layerId, id);
   document.getElementById('detail-panel').classList.add('open');
   map.closePopup();
 };
