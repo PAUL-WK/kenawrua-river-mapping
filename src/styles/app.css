@@ -120,10 +120,10 @@ input{font:inherit}
 
 /* legend — always visible inside the map stage, never covered by the side panel or table dock */
 .legend{position:absolute;bottom:14px;right:12px;z-index:25;background:var(--panel);border:1px solid var(--line);border-radius:12px;
-  padding:10px 12px;font-size:11px;display:flex;flex-direction:column;gap:4px}
-.legend-title{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted2);margin-bottom:2px;font-family:'JetBrains Mono',monospace}
-.legend-item{display:flex;align-items:center;gap:7px;color:#cbd5e1}
-.legend-dot{width:9px;height:9px;border-radius:50%;flex:none}
+  padding:14px 16px;font-size:13px;display:flex;flex-direction:column;gap:7px;min-width:150px}
+.legend-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink);font-weight:700;margin-bottom:4px;font-family:'JetBrains Mono',monospace}
+.legend-item{display:flex;align-items:center;gap:9px;color:#e2e8f0}
+.legend-dot{width:11px;height:11px;border-radius:50%;flex:none}
 
 /* basin analytics stats, shared between the side panel and the full dashboard —
    a left accent border + brighter, larger value makes these readable at a glance */
