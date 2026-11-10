@@ -66,14 +66,14 @@ input{font:inherit}
 .detail-panel-inner{width:360px;height:100%;display:flex;flex-direction:column}
 .detail-panel-body{padding:20px;overflow-y:auto;flex:1}
 
-/* detail panel rows — one label/value pair per row with generous spacing, since the panel
-   has far more room than a map popup and a dense table here just looks congested */
-.detail-sub{color:var(--muted2);font-size:12px;margin-bottom:18px}
-.detail-rows{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.detail-row{background:var(--panel-soft);border:1px solid var(--line-soft);border-left:3px solid var(--accent);border-radius:12px;padding:12px}
-.detail-row.wide{grid-column:1 / -1}
-.detail-row-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
-.detail-row-val{font-size:16px;font-weight:700;color:#fff;margin-top:5px;line-height:1.3}
+/* detail panel rows — one label/value pair per line (label left, value right), separated by a
+   hairline, like a feature-properties inspector rather than a dense data table */
+.detail-sub{color:var(--muted2);font-size:12px;margin-bottom:6px}
+.detail-rows{display:flex;flex-direction:column}
+.detail-row{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:12px 2px;border-bottom:1px solid var(--line-soft)}
+.detail-row:last-child{border-bottom:none}
+.detail-row-label{font-size:12.5px;color:var(--muted);flex:1;min-width:0}
+.detail-row-val{font-size:13.5px;font-weight:700;color:var(--accent-light);text-align:right;flex:none;max-width:58%;word-break:break-word;line-height:1.4}
 
 .map-col{flex:1;min-width:0;display:flex;flex-direction:column}
 .map-stage{flex:1;min-height:0;position:relative}
