@@ -1,6 +1,6 @@
 import './styles/app.css';
 import L from 'leaflet';
-import { LAYERS, BASINS, RIVERS, BASEMAP, BASIN_EXTENTS, BASIN_COLOR, Q, ST, colorFor, layerById } from './layers.js';
+import { LAYERS, BASINS, RIVERS, BASIN_EXTENTS, BASIN_COLOR, Q, ST, colorFor, layerById } from './layers.js';
 
 const app = document.getElementById('app');
 app.innerHTML = `
@@ -24,55 +24,60 @@ app.innerHTML = `
   </header>
 
   <div id="view-map" class="view">
-    <div class="map-subbar">
-      <div class="subbar-left">
-        <div class="chipbar"><span class="msym" style="font-size:16px;color:#06b6d4">travel_explore</span>
-          <select id="basin-select"><option value="">All basins</option></select></div>
-        <div class="seg" id="color-mode">
-          <button data-mode="quality" class="on">Water quality</button>
-          <button data-mode="status">Monitoring status</button>
+    <div class="body-row">
+      <!-- slim icon rail: click to expand the matching panel -->
+      <div class="icon-rail">
+        <button class="rail-btn" id="rail-layers" title="Layers"><span class="msym">layers</span></button>
+        <button class="rail-btn" id="rail-analytics" title="Basin Analytics"><span class="msym">monitoring</span></button>
+        <button class="rail-btn" id="rail-table" title="Attribute table"><span class="msym">table_rows</span></button>
+        <div style="flex:1"></div>
+        <button class="rail-btn" id="rail-basemap" title="Basemap"><span class="msym">public</span></button>
+      </div>
+
+      <!-- side panel: fixed width, pushes the map column rather than floating over it -->
+      <div class="side-panel" id="side-panel">
+        <div class="side-panel-inner">
+          <div class="panel-head">
+            <div><div class="panel-head-title" id="side-panel-title">Layers</div><div class="panel-head-sub" id="side-panel-sub"></div></div>
+            <button class="icon-btn" id="side-panel-close"><span class="msym" style="font-size:16px">close</span></button>
+          </div>
+          <div class="side-panel-body scrollbar" id="side-panel-body"></div>
         </div>
       </div>
-      <button class="subbar-btn" id="btn-hud"><span class="msym">dock_to_left</span><span>Basin Analytics</span></button>
-    </div>
-    <div id="map"></div>
 
-    <button class="layers-fab" id="layers-fab"><span class="msym" style="font-size:22px">layers</span></button>
-    <div class="layers-panel" id="layers-panel" hidden>
-      <div class="panel-head">
-        <div><div class="panel-head-title">Active layers</div><div class="panel-head-sub">Tap the table icon to inspect a layer</div></div>
-        <button class="icon-btn" id="layers-close"><span class="msym" style="font-size:16px">close</span></button>
-      </div>
-      <div class="layer-rows scrollbar" id="layer-rows"></div>
-    </div>
-
-    <div class="legend" id="legend"></div>
-
-    <div class="hud" id="hud" hidden>
-      <div class="hud-head">
-        <div><div class="hud-title">Basin Analytics</div><div class="hud-scope" id="hud-scope">All basins</div></div>
-        <div style="display:flex;gap:6px">
-          <button class="icon-btn" id="hud-expand" title="Expand"><span class="msym" style="font-size:16px">open_in_full</span></button>
-          <button class="icon-btn" id="hud-close"><span class="msym" style="font-size:16px">close</span></button>
+      <div class="map-col">
+        <div class="map-subbar">
+          <div class="subbar-left">
+            <div class="chipbar"><span class="msym" style="font-size:16px;color:#06b6d4">travel_explore</span>
+              <select id="basin-select"><option value="">All basins</option></select></div>
+            <div class="seg" id="color-mode">
+              <button data-mode="quality" class="on">Water quality</button>
+              <button data-mode="status">Monitoring status</button>
+            </div>
+          </div>
+        </div>
+        <div class="map-stage">
+          <div id="map"></div>
+          <div class="basemap-picker" id="basemap-picker" hidden></div>
+          <div class="legend" id="legend"></div>
+        </div>
+        <div class="table-dock" id="table-dock">
+          <div class="table-dock-inner">
+            <div class="table-head">
+              <div class="table-head-left">
+                <span class="msym" style="font-size:17px;color:#06b6d4" id="table-icon">table_rows</span>
+                <span class="table-title" id="table-title">Attribute table</span>
+                <span class="table-count" id="table-count"></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <input class="table-search" id="table-search" placeholder="Search…">
+                <button class="table-close" id="table-close"><span class="msym" style="font-size:15px">expand_more</span>Hide</button>
+              </div>
+            </div>
+            <div class="table-scroll scrollbar"><table class="attr"><thead><tr id="thead-row"></tr></thead><tbody id="tbody"></tbody></table></div>
+          </div>
         </div>
       </div>
-      <div class="hud-body scrollbar" id="hud-body"></div>
-    </div>
-
-    <button class="table-reopen" id="table-reopen" hidden><span class="msym" style="font-size:16px;color:#06b6d4">table_rows</span>Attribute table</button>
-    <div class="table-panel closed" id="table-panel">
-      <div class="table-head">
-        <div class="table-head-left">
-          <span class="msym" style="font-size:17px;color:#06b6d4" id="table-icon">table_rows</span>
-          <span class="table-title" id="table-title">Attribute table</span>
-          <span class="table-count" id="table-count"></span>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <input class="table-search" id="table-search" placeholder="Search…">
-          <button class="table-close" id="table-close"><span class="msym" style="font-size:15px">expand_more</span>Hide</button>
-        </div>
-      </div>
-      <div class="table-scroll scrollbar"><table class="attr"><thead><tr id="thead-row"></tr></thead><tbody id="tbody"></tbody></table></div>
     </div>
   </div>
 
@@ -85,6 +90,8 @@ let colorMode = 'quality';
 let activeTableLayer = LAYERS[0].id;
 let selectedId = null;
 let sortKey = null, sortDir = 1;
+let activeSidePanel = null; // null | 'layers' | 'analytics'
+let tableOpen = false;
 const layerOn = Object.fromEntries(LAYERS.map(l => [l.id, true]));
 const markerById = {};
 
@@ -94,27 +101,46 @@ BASINS.forEach(b => { const o = document.createElement('option'); o.value = b; o
 basinSelect.onchange = () => { basinFilter = basinSelect.value; refresh(); };
 
 // ---------------- map ----------------
-// zoomControl: false — the default top-left position collides with the layers FAB/panel,
-// which also live in that corner. Re-added top-right below instead (see leaflet overrides in app.css).
-const map = L.map('map', { zoomSnap: 0.25, attributionControl: true, zoomControl: false }).fitBounds([[-3.3, 34.4], [0.9, 38.4]]);
+// zoomControl stays top-right — the icon rail + side panel now own the left edge, so the
+// default top-left position (which used to collide with the floating layers FAB) is free,
+// but top-right keeps the zoom buttons clear of both.
+const map = L.map('map', { zoomSnap: 0.25, zoomControl: false }).fitBounds([[-3.3, 34.4], [0.9, 38.4]]);
 L.control.zoom({ position: 'topright' }).addTo(map);
-map.attributionControl.setPrefix(false).addAttribution('Natural Earth · WRUA &amp; FreshWater Watch data · demonstration prototype');
-map.createPane('basemap').style.zIndex = 250;
 
-L.geoJSON(BASEMAP.countries, { pane: 'basemap', interactive: false, style: f => ({ color: '#334155', weight: f.properties.name === 'Kenya' ? 1.3 : 0.6, fillColor: f.properties.name === 'Kenya' ? '#0e1a24' : '#0a121c', fillOpacity: 1 }) }).addTo(map).bringToBack();
-L.geoJSON(BASEMAP.lakes, { pane: 'basemap', interactive: false, style: { color: '#1d4e66', weight: 0.5, fillColor: '#123549', fillOpacity: 0.9 } }).addTo(map);
-L.geoJSON(BASEMAP.rivers, { pane: 'basemap', interactive: false, style: { color: '#155e75', weight: 0.8, fillColor: '#155e75', fillOpacity: 0.9 } }).addTo(map);
-const riverLayer = L.layerGroup().addTo(map);
-if (BASEMAP.lines) L.geoJSON(BASEMAP.lines, { pane: 'basemap', interactive: false, style: { color: '#0e7490', weight: 1.6 } }).addTo(riverLayer);
-[['Nairobi', -1.286, 36.817], ['Nakuru', -0.303, 36.08], ['Naivasha', -0.717, 36.431], ['Bomet', -0.782, 35.342], ['Narok', -1.08, 35.87], ['Nanyuki', 0.012, 37.073], ['Thika', -1.033, 37.069], ['Kajiado', -1.852, 36.776]]
-  .forEach(([n, la, lo]) => L.circleMarker([la, lo], { pane: 'basemap', radius: 2, weight: 0, fillColor: '#64748b', fillOpacity: 1, interactive: false }).bindTooltip(n, { permanent: true, direction: 'right', offset: [4, 0], className: 'tip', opacity: 0.85 }).addTo(map));
+// ---------------- basemaps ----------------
+// Real raster tiles instead of a hand-drawn dark vector basemap — OpenStreetMap is the default,
+// with a couple of alternates reachable from the basemap icon on the rail.
+const BASEMAPS = {
+  osm: { label: 'OpenStreetMap', layer: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }) },
+  dark: { label: 'Dark', layer: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '&copy; OpenStreetMap contributors &copy; CARTO' }) },
+  satellite: { label: 'Satellite', layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics' }) }
+};
+let currentBasemap = 'osm';
+BASEMAPS[currentBasemap].layer.addTo(map);
+map.attributionControl.setPrefix(false);
 
+function setBasemap(key) {
+  if (key === currentBasemap) return;
+  map.removeLayer(BASEMAPS[currentBasemap].layer);
+  currentBasemap = key;
+  BASEMAPS[currentBasemap].layer.addTo(map);
+  buildBasemapPicker();
+}
+function buildBasemapPicker() {
+  document.getElementById('basemap-picker').innerHTML = Object.entries(BASEMAPS).map(([key, b]) =>
+    `<button class="basemap-btn ${key === currentBasemap ? 'on' : ''}" data-key="${key}">${b.label}</button>`).join('');
+  [...document.querySelectorAll('.basemap-btn')].forEach(btn => btn.onclick = () => setBasemap(btn.dataset.key));
+}
+buildBasemapPicker();
+
+// Approximate WRUA basin outlines, drawn over the real basemap for orientation.
 const basinLayer = L.layerGroup().addTo(map);
+const basinPane = map.createPane('basins'); basinPane.style.zIndex = 450;
 Object.entries(BASIN_EXTENTS).forEach(([b, pts]) => {
   const c = BASIN_COLOR[b] || '#94a3b8';
-  basinLayer.addLayer(L.polygon(pts.map(p => [p[1], p[0]]), { pane: 'basemap', color: c, weight: 1.3, dashArray: '5 4', fillColor: c, fillOpacity: 0.05, interactive: false }));
+  basinLayer.addLayer(L.polygon(pts.map(p => [p[1], p[0]]), { pane: 'basins', color: c, weight: 1.6, dashArray: '5 4', fillColor: c, fillOpacity: 0.07, interactive: false }));
   const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-  basinLayer.addLayer(L.marker([cy, cx], { pane: 'basemap', interactive: false, icon: L.divIcon({ className: '', html: `<div style="font:700 11px Inter;letter-spacing:.12em;text-transform:uppercase;color:${c};text-shadow:0 0 4px #070d1b,0 0 4px #070d1b">${b}</div>`, iconSize: null }) }));
+  basinLayer.addLayer(L.marker([cy, cx], { pane: 'basins', interactive: false, icon: L.divIcon({ className: '', html: `<div style="font:700 11px Inter;letter-spacing:.12em;text-transform:uppercase;color:${c};text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 4px #fff">${b}</div>`, iconSize: null }) }));
 });
 
 const leafletLayerGroup = {};
@@ -145,10 +171,13 @@ function selectSite(layerId, id) {
   openTable(layerId);
 }
 
-// ---------------- layers panel ----------------
-const rowsEl = document.getElementById('layer-rows');
-function buildLayerPanel() {
-  rowsEl.innerHTML = '';
+// ---------------- side panel: layers ----------------
+function renderLayersPanel() {
+  document.getElementById('side-panel-title').textContent = 'Active layers';
+  document.getElementById('side-panel-sub').textContent = 'Tap the table icon to inspect a layer';
+  const body = document.getElementById('side-panel-body');
+  body.innerHTML = '<div class="layer-rows" id="layer-rows"></div>';
+  const rowsEl = document.getElementById('layer-rows');
   let lastGroup = null;
   LAYERS.forEach(l => {
     if (l.group !== lastGroup) { lastGroup = l.group; const g = document.createElement('div'); g.className = 'layer-group-label'; g.textContent = l.group; rowsEl.appendChild(g); }
@@ -164,8 +193,8 @@ function buildLayerPanel() {
       </label>
       <span class="layer-count">${n}</span>
       <button class="layer-table-btn" title="Open ${l.label} attribute table"><span class="msym" style="font-size:16px">table_rows</span></button>`;
-    row.querySelector('input').onchange = e => { layerOn[l.id] = e.target.checked; drawMarkers(); };
-    row.querySelector('.layer-table-btn').onclick = () => openTable(l.id);
+    row.querySelector('input').onchange = e => { layerOn[l.id] = e.target.checked; drawMarkers(); renderLayersPanel(); };
+    row.querySelector('.layer-table-btn').onclick = () => { openTable(l.id); openTableDock(); };
     rowsEl.appendChild(row);
   });
 }
@@ -177,7 +206,7 @@ function buildLegend() {
     Object.values(scale).map(v => `<div class="legend-item"><span class="legend-dot" style="background:${v.c}"></span>${v.label}</div>`).join('');
 }
 
-// ---------------- HUD / dashboard ----------------
+// ---------------- basin stats (shared by side panel + full dashboard) ----------------
 function basinStats(filter) {
   const cs = LAYERS[0].data.filter(s => !filter || s.basin === filter);
   const wr = LAYERS[1].data.filter(s => !filter || s.basin === filter);
@@ -243,10 +272,13 @@ function landuseCounts(filter) {
   });
   return Object.entries(counts).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
 }
-function renderHud() {
-  document.getElementById('hud-scope').textContent = basinFilter || 'All basins';
+
+// ---------------- side panel: basin analytics ----------------
+function renderAnalyticsPanel() {
+  document.getElementById('side-panel-title').textContent = 'Basin Analytics';
+  document.getElementById('side-panel-sub').textContent = basinFilter || 'All basins';
   const st = basinStats(basinFilter);
-  document.getElementById('hud-body').innerHTML = `
+  document.getElementById('side-panel-body').innerHTML = `
     <div class="stat-grid">
       ${statCard('Sites shown', st.total)}
       ${statCard('Avg. pollution idx', st.avgIdx == null ? '–' : Math.round(st.avgIdx), 'citizen-science sites')}
@@ -254,8 +286,11 @@ function renderHud() {
       ${statCard('Low oxygen', st.lowDO, 'WRUA, DO &lt; 5 mg/L')}
     </div>
     <div><div style="font-size:12px;font-weight:700;margin-bottom:8px">Most polluted rivers</div><div style="display:flex;flex-direction:column;gap:7px">${riverBars(st.rivers, 6)}</div></div>
+    <div><button class="subbar-btn" id="analytics-expand" style="width:100%;justify-content:center"><span class="msym" style="font-size:16px">open_in_full</span><span>Full dashboard</span></button></div>
     <div class="hud-foot">Covers ${BASINS.length} basins and 50 WRUAs in the shared dataset — a sample of KeNAWRUA's 756 WRUAs nationally, not a full census.</div>`;
+  document.getElementById('analytics-expand').onclick = () => showView('dash');
 }
+
 function renderDash() {
   const st = basinStats(basinFilter);
   const { quality, status } = qualityStatusTallies(basinFilter);
@@ -305,11 +340,9 @@ function renderDash() {
     <div style="font-size:11px;color:#64748b;border-top:1px solid #1e293b;padding-top:12px">Coverage caveat: this demonstration holds data for 50 of KeNAWRUA's 756 national WRUAs. Treat unmapped areas as data gaps, not confirmed inactivity.</div>`;
 }
 
-// ---------------- attribute table (per layer) ----------------
+// ---------------- attribute table (per layer, bottom-docked, pushes the map) ----------------
 function openTable(layerId) {
   activeTableLayer = layerId;
-  document.getElementById('table-panel').classList.remove('closed');
-  document.getElementById('table-reopen').hidden = true;
   sortKey = null; sortDir = 1;
   renderTable();
 }
@@ -340,18 +373,58 @@ function renderTable() {
   [...document.querySelectorAll('#tbody tr')].forEach(tr => tr.onclick = () => selectSite(layer.id, tr.dataset.id));
 }
 
-// ---------------- wiring ----------------
-document.getElementById('layers-fab').onclick = () => { document.getElementById('layers-panel').hidden = false; };
-document.getElementById('layers-close').onclick = () => { document.getElementById('layers-panel').hidden = true; };
-document.getElementById('btn-hud').onclick = () => { document.getElementById('hud').hidden = false; renderHud(); };
-document.getElementById('hud-close').onclick = () => { document.getElementById('hud').hidden = true; };
-document.getElementById('hud-expand').onclick = () => showView('dash');
-document.getElementById('table-close').onclick = () => { document.getElementById('table-panel').classList.add('closed'); document.getElementById('table-reopen').hidden = false; };
-document.getElementById('table-reopen').onclick = () => { document.getElementById('table-panel').classList.remove('closed'); document.getElementById('table-reopen').hidden = true; };
+// ---------------- rail + side panel + table dock wiring ----------------
+function setRailOn() {
+  document.getElementById('rail-layers').classList.toggle('on', activeSidePanel === 'layers');
+  document.getElementById('rail-analytics').classList.toggle('on', activeSidePanel === 'analytics');
+  document.getElementById('rail-table').classList.toggle('on', tableOpen);
+}
+function openSidePanel(which) {
+  activeSidePanel = which;
+  document.getElementById('side-panel').classList.add('open');
+  if (which === 'layers') renderLayersPanel(); else renderAnalyticsPanel();
+  setRailOn();
+}
+function closeSidePanel() {
+  activeSidePanel = null;
+  document.getElementById('side-panel').classList.remove('open');
+  setRailOn();
+}
+function toggleSidePanel(which) {
+  if (activeSidePanel === which) closeSidePanel(); else openSidePanel(which);
+}
+function openTableDock() {
+  tableOpen = true;
+  document.getElementById('table-dock').classList.add('open');
+  setRailOn();
+  renderTable();
+}
+function closeTableDock() {
+  tableOpen = false;
+  document.getElementById('table-dock').classList.remove('open');
+  setRailOn();
+}
+function toggleTableDock() { tableOpen ? closeTableDock() : openTableDock(); }
+
+document.getElementById('rail-layers').onclick = () => toggleSidePanel('layers');
+document.getElementById('rail-analytics').onclick = () => toggleSidePanel('analytics');
+document.getElementById('rail-table').onclick = () => toggleTableDock();
+document.getElementById('rail-basemap').onclick = () => { document.getElementById('basemap-picker').hidden = !document.getElementById('basemap-picker').hidden; };
+document.getElementById('side-panel-close').onclick = () => closeSidePanel();
+document.getElementById('table-close').onclick = () => closeTableDock();
 document.getElementById('table-search').oninput = renderTable;
 document.getElementById('nav-map').onclick = () => showView('map');
 document.getElementById('nav-dash').onclick = () => showView('dash');
 document.querySelectorAll('#color-mode button').forEach(b => b.onclick = () => { colorMode = b.dataset.mode; refresh(); });
+
+// the map canvas only resizes because the side panel / table dock are real flex items (their
+// width/height is animated, not an overlay) — recalculate Leaflet's internal size once that
+// transition finishes, otherwise tiles stay clipped to the old canvas size.
+['side-panel', 'table-dock'].forEach(id => {
+  document.getElementById(id).addEventListener('transitionend', e => {
+    if (e.propertyName === 'width' || e.propertyName === 'height') map.invalidateSize();
+  });
+});
 
 function showView(v) {
   document.getElementById('view-map').hidden = v !== 'map';
@@ -364,13 +437,12 @@ function updateColorButtons() {
   document.querySelectorAll('#color-mode button').forEach(b => b.classList.toggle('on', b.dataset.mode === colorMode));
 }
 function refresh() {
-  updateColorButtons(); buildLegend(); drawMarkers(); buildLayerPanel(); renderTable();
-  if (!document.getElementById('hud').hidden) renderHud();
+  updateColorButtons(); buildLegend(); drawMarkers(); renderTable();
+  if (activeSidePanel === 'layers') renderLayersPanel();
+  if (activeSidePanel === 'analytics') renderAnalyticsPanel();
 }
 
 refresh();
 openTable(LAYERS[0].id);
-document.getElementById('table-panel').classList.add('closed');
-document.getElementById('table-reopen').hidden = false;
 window.addEventListener('resize', () => map.invalidateSize());
 setTimeout(() => map.invalidateSize(), 80);
