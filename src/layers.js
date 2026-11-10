@@ -45,13 +45,14 @@ function popupBody(s, layerId, subtitle, rows) {
     <table style="font-size:11.5px;width:100%">${shown.map(([l, v]) => row(l, v)).join('')}</table>
     ${hidden > 0 ? `<div style="font-size:10.5px;color:#64748b;margin-top:7px;text-align:center">+${hidden} more attribute${hidden > 1 ? 's' : ''} — tap <span class="msym" style="font-size:12px;vertical-align:-2px">open_in_full</span> to see all</div>` : ''}`;
 }
-// Detail-panel body: the FULL row list, laid out with generous spacing (not a cramped table)
-// since the panel has a lot more room than a map popup.
+// Detail-panel body: the FULL row list as a 2-column card grid (not a cramped table) since
+// the panel has a lot more room than a map popup. A row whose value tends to run long (dates,
+// ranges) spans both columns so it never wraps awkwardly inside a half-width card.
 function detailBody(subtitle, rows) {
   return `
     <div class="detail-sub">${subtitle}</div>
     <div class="detail-rows">
-      ${rows.map(([l, v]) => `<div class="detail-row"><div class="detail-row-label">${l}</div><div class="detail-row-val">${v}</div></div>`).join('')}
+      ${rows.map(([l, v]) => `<div class="detail-row${String(v).length > 14 ? ' wide' : ''}"><div class="detail-row-label">${l}</div><div class="detail-row-val">${v}</div></div>`).join('')}
     </div>`;
 }
 
