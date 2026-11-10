@@ -196,6 +196,13 @@ function drawMarkers() {
 
 function selectSite(layerId, id) {
   selectedId = id;
+  // selecting a row (or its zoom button) should always show the point on the map, even if
+  // its layer was switched off — otherwise the marker was never drawn and nothing happens.
+  if (!layerOn[layerId]) {
+    layerOn[layerId] = true;
+    drawMarkers();
+    if (activeSidePanel === 'layers') renderLayersPanel();
+  }
   const key = layerId + ':' + id, m = markerById[key];
   if (m) {
     // never zoom OUT to reach a point — only zoom in if we're currently further out than 11
