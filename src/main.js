@@ -376,6 +376,8 @@ function renderAnalyticsPanel() {
   document.getElementById('side-panel-title').textContent = 'Basin Analytics';
   document.getElementById('side-panel-sub').textContent = basinFilter || 'All basins';
   const st = basinStats(basinFilter);
+  const { quality } = qualityStatusTallies(basinFilter);
+  const qualitySegs = Object.entries(quality).map(([key, value]) => ({ label: Q[key] ? Q[key].label : key, value, color: Q[key] ? Q[key].c : '#94a3b8' }));
   document.getElementById('side-panel-body').innerHTML = `
     <div class="stat-grid">
       ${statCard('Sites shown', st.total)}
@@ -384,6 +386,7 @@ function renderAnalyticsPanel() {
       ${statCard('Low oxygen', st.lowDO, 'WRUA, DO &lt; 5 mg/L')}
     </div>
     <div><div style="font-size:12px;font-weight:700;margin-bottom:8px">Most polluted rivers</div><div style="display:flex;flex-direction:column;gap:7px">${riverBars(st.rivers, 6)}</div></div>
+    <div><div style="font-size:12px;font-weight:700;margin-bottom:8px">Water quality</div>${donutChart(qualitySegs)}</div>
     <div><button class="subbar-btn" id="analytics-expand" style="width:100%;justify-content:center"><span class="msym" style="font-size:16px">open_in_full</span><span>Full dashboard</span></button></div>
     <div class="hud-foot">Covers ${BASINS.length} basins and 50 WRUAs in the shared dataset — a sample of KeNAWRUA's 756 WRUAs nationally, not a full census.</div>`;
   document.getElementById('analytics-expand').onclick = () => showView('dash');
