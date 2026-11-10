@@ -61,6 +61,11 @@ input{font:inherit}
 .side-panel-inner{width:320px;height:100%;display:flex;flex-direction:column}
 .side-panel-body{padding:14px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:16px}
 
+.detail-panel{flex:none;width:0;overflow:hidden;background:var(--panel);border-left:1px solid var(--line);transition:width .22s ease}
+.detail-panel.open{width:min(360px,calc(100vw - 56px))}
+.detail-panel-inner{width:360px;height:100%;display:flex;flex-direction:column}
+.detail-panel-body{padding:16px;overflow-y:auto;flex:1}
+
 .map-col{flex:1;min-width:0;display:flex;flex-direction:column}
 .map-stage{flex:1;min-height:0;position:relative}
 #map{position:absolute;inset:0;z-index:1}
@@ -111,12 +116,13 @@ input{font:inherit}
 .legend-item{display:flex;align-items:center;gap:7px;color:#cbd5e1}
 .legend-dot{width:9px;height:9px;border-radius:50%;flex:none}
 
-/* basin analytics stats, shared between the side panel and the full dashboard */
+/* basin analytics stats, shared between the side panel and the full dashboard —
+   a left accent border + brighter, larger value makes these readable at a glance */
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.stat-card{background:#0209144d;border:1px solid var(--line-soft);border-radius:12px;padding:10px}
-.stat-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted2);font-family:'JetBrains Mono',monospace}
-.stat-val{font-size:20px;font-weight:800;margin-top:2px}
-.stat-sub{font-size:10px;color:var(--muted2);margin-top:2px}
+.stat-card{background:linear-gradient(180deg,#0ea5e91f,#0209144d);border:1px solid var(--line-soft);border-left:3px solid var(--accent);border-radius:12px;padding:12px}
+.stat-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#9fb0c3;font-family:'JetBrains Mono',monospace}
+.stat-val{font-size:27px;font-weight:800;margin-top:3px;color:#fff}
+.stat-sub{font-size:10px;color:var(--muted2);margin-top:3px}
 .river-bar-row{display:flex;align-items:center;gap:8px;font-size:12px}
 .river-bar-name{width:92px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cbd5e1}
 .river-bar-track{flex:1;height:7px;background:#1e293b;border-radius:999px;overflow:hidden}
@@ -126,8 +132,8 @@ input{font:inherit}
 
 /* attribute table — bottom-docked, pushes the map stage up when open instead of overlaying it */
 .table-dock{flex:none;height:0;overflow:hidden;background:var(--panel);border-top:1px solid var(--line);transition:height .22s ease}
-.table-dock.open{height:min(320px,46vh)}
-.table-dock-inner{height:min(320px,46vh);display:flex;flex-direction:column}
+.table-dock.open{height:min(380px,52vh)}
+.table-dock-inner{height:min(380px,52vh);display:flex;flex-direction:column}
 .table-head{padding:9px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;flex:none}
 .table-head-left{display:flex;align-items:center;gap:8px;min-width:0}
 .table-title{font-size:12px;font-weight:700;white-space:nowrap}
@@ -144,6 +150,19 @@ table.attr td{padding:6px 10px;border-bottom:1px solid #1e293b66;white-space:now
 table.attr tbody tr:hover{background:#0ea5e914}
 table.attr tbody tr.sel{background:#06b6d422}
 .badge{padding:2px 7px;border-radius:5px;font-size:10px}
+.filter-row th{padding:4px 8px;border-bottom:1px solid var(--line);background:#020813cc}
+.col-filter{width:100%;background:var(--panel-soft);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:10.5px;color:var(--ink)}
+.col-filter::placeholder{color:var(--muted2)}
+.action-col{width:32px}
+.action-cell{padding:4px 6px!important;text-align:center}
+.row-zoom-btn{width:24px;height:24px;border-radius:6px;background:#1e293b;border:none;color:var(--muted);display:inline-flex;align-items:center;justify-content:center}
+.row-zoom-btn:hover{background:var(--accent);color:#02131a}
+.table-pagination{flex:none;display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 12px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.page-btn{width:26px;height:26px;border-radius:6px;background:#1e293b;border:1px solid var(--line);color:var(--muted);display:flex;align-items:center;justify-content:center}
+.page-btn:disabled{opacity:.4;cursor:default}
+.page-btn:not(:disabled):hover{background:var(--accent);color:#02131a}
+.page-info{font-family:'JetBrains Mono',monospace;font-size:10.5px}
+.page-size-select{background:var(--panel-soft);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:11px;padding:3px 6px;margin-left:4px}
 
 /* leaflet overrides */
 .leaflet-container{background:#aad3df;font-family:Inter,sans-serif}
@@ -191,8 +210,10 @@ table.attr tbody tr.sel{background:#06b6d422}
   .rail-btn{width:34px;height:34px}
   .side-panel.open{width:calc(100vw - 48px)}
   .side-panel-inner{width:100%}
-  .table-dock.open{height:62vh}
-  .table-dock-inner{height:62vh}
+  .detail-panel.open{width:calc(100vw - 48px)}
+  .detail-panel-inner{width:100%}
+  .table-dock.open{height:68vh}
+  .table-dock-inner{height:68vh}
   .dash-stat-grid{grid-template-columns:1fr 1fr}
   .dash-row-2-1,.dash-row-2{grid-template-columns:1fr}
   #view-dash{padding:16px}
