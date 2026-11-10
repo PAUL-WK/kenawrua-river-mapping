@@ -69,11 +69,11 @@ input{font:inherit}
 /* detail panel rows — one label/value pair per row with generous spacing, since the panel
    has far more room than a map popup and a dense table here just looks congested */
 .detail-sub{color:var(--muted2);font-size:12px;margin-bottom:18px}
-.detail-rows{display:flex;flex-direction:column}
-.detail-row{padding:14px 0;border-bottom:1px solid var(--line-soft)}
-.detail-row:last-child{border-bottom:none}
-.detail-row-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted2);font-family:'JetBrains Mono',monospace}
-.detail-row-val{font-size:17px;font-weight:700;color:#fff;margin-top:4px}
+.detail-rows{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.detail-row{background:var(--panel-soft);border:1px solid var(--line-soft);border-left:3px solid var(--accent);border-radius:12px;padding:12px}
+.detail-row.wide{grid-column:1 / -1}
+.detail-row-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.detail-row-val{font-size:16px;font-weight:700;color:#fff;margin-top:5px;line-height:1.3}
 
 .map-col{flex:1;min-width:0;display:flex;flex-direction:column}
 .map-stage{flex:1;min-height:0;position:relative}
