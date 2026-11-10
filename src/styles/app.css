@@ -180,7 +180,7 @@ table.attr tbody tr.sel{background:#06b6d422}
 .dash-wrap{width:100%;display:flex;flex-direction:column;gap:20px}
 .dash-h1{font-size:19px;font-weight:800;color:#fff}
 .dash-p{font-size:12px;color:var(--muted);margin-top:4px}
-.dash-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.dash-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
 .dash-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
 .dash-card-title{font-size:13px;font-weight:700;margin-bottom:12px}
 .bar-list{display:flex;flex-direction:column;gap:9px}
