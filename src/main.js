@@ -74,8 +74,20 @@ app.innerHTML = `
                 <button class="table-close" id="table-close"><span class="msym" style="font-size:15px">expand_more</span>Hide</button>
               </div>
             </div>
-            <div class="table-scroll scrollbar"><table class="attr"><thead><tr id="thead-row"></tr></thead><tbody id="tbody"></tbody></table></div>
+            <div class="table-scroll scrollbar"><table class="attr"><thead><tr id="thead-row"></tr><tr id="filter-row" class="filter-row"></tr></thead><tbody id="tbody"></tbody></table></div>
+            <div class="table-pagination" id="table-pagination"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- right detail panel: opened from a popup's expand icon, also a real flex sibling so it pushes the map -->
+      <div class="detail-panel" id="detail-panel">
+        <div class="detail-panel-inner">
+          <div class="panel-head">
+            <div><div class="panel-head-title" id="detail-panel-title">Feature details</div><div class="panel-head-sub" id="detail-panel-sub"></div></div>
+            <button class="icon-btn" id="detail-panel-close"><span class="msym" style="font-size:16px">close</span></button>
+          </div>
+          <div class="detail-panel-body scrollbar" id="detail-panel-body"></div>
         </div>
       </div>
     </div>
@@ -90,6 +102,10 @@ let colorMode = 'quality';
 let activeTableLayer = LAYERS[0].id;
 let selectedId = null;
 let sortKey = null, sortDir = 1;
+let columnFilters = {};
+let currentPage = 1;
+let pageSize = 50;
+let headBuiltFor = null;
 let activeSidePanel = null; // null | 'layers' | 'analytics'
 let tableOpen = false;
 const layerOn = Object.fromEntries(LAYERS.map(l => [l.id, true]));
@@ -165,11 +181,46 @@ function drawMarkers() {
 }
 
 function selectSite(layerId, id) {
-  selectedId = id; activeTableLayer = layerId;
+  selectedId = id;
   const key = layerId + ':' + id, m = markerById[key];
-  if (m) { map.setView(m.getLatLng(), 11); m.openPopup(); }
+  if (m) {
+    // never zoom OUT to reach a point — only zoom in if we're currently further out than 11
+    const targetZoom = Math.max(map.getZoom(), 11);
+    map.setView(m.getLatLng(), targetZoom);
+    m.openPopup();
+    flashMarker(m);
+  }
   openTable(layerId);
+  openTableDock();
 }
+
+// brief double-pulse highlight on the marker just flown to
+function flashMarker(m) {
+  const orig = { radius: m.options.radius, weight: m.options.weight, color: m.options.color };
+  let n = 0;
+  const pulse = () => {
+    m.setStyle({ radius: orig.radius + 7, weight: 3, color: '#ffffff' });
+    setTimeout(() => {
+      m.setStyle({ radius: orig.radius, weight: orig.weight, color: orig.color });
+      n++;
+      if (n < 2) setTimeout(pulse, 140);
+    }, 230);
+  };
+  pulse();
+}
+
+// popup "expand" icon → right-hand detail panel instead of staying as a small popup
+window.hlOpenDetail = function (layerId, id) {
+  const layer = layerById(layerId);
+  const s = layer.data.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('detail-panel-title').textContent = s.name;
+  document.getElementById('detail-panel-sub').textContent = layer.label;
+  document.getElementById('detail-panel-body').innerHTML = layer.popup(s);
+  document.getElementById('detail-panel').classList.add('open');
+  map.closePopup();
+};
+document.getElementById('detail-panel-close').onclick = () => document.getElementById('detail-panel').classList.remove('open');
 
 // ---------------- side panel: layers ----------------
 function renderLayersPanel() {
@@ -299,7 +350,10 @@ function renderDash() {
   const basinBars = basinCounts().map(b => ({ ...b, label: b.label.length > 18 ? b.label.slice(0, 16) + '…' : b.label }));
   const landuseBars = landuseCounts(basinFilter).map(l => ({ ...l, color: '#38bdf8' }));
   document.getElementById('dash-wrap').innerHTML = `
-    <div><div class="dash-h1">Basin Analytics — ${basinFilter || 'All basins'}</div><div class="dash-p">Demonstration prototype built from WRUA and citizen-science monitoring records shared with KeNAWRUA.</div></div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div><div class="dash-h1">Basin Analytics — ${basinFilter || 'All basins'}</div><div class="dash-p">Demonstration prototype built from WRUA and citizen-science monitoring records shared with KeNAWRUA.</div></div>
+      <div class="chipbar"><span class="msym" style="font-size:16px;color:#06b6d4">travel_explore</span><select id="dash-basin-select"></select></div>
+    </div>
     <div class="dash-stat-grid">
       ${statCard('Total sites', st.total)}
       ${statCard('Citizen-science', st.cs, 'nitrate / phosphate / turbidity')}
@@ -338,39 +392,81 @@ function renderDash() {
       ${statCard('Low-oxygen WRUA sites', st.lowDO, 'DO below 5 mg/L')}
     </div>
     <div style="font-size:11px;color:#64748b;border-top:1px solid #1e293b;padding-top:12px">Coverage caveat: this demonstration holds data for 50 of KeNAWRUA's 756 national WRUAs. Treat unmapped areas as data gaps, not confirmed inactivity.</div>`;
+  const dashSel = document.getElementById('dash-basin-select');
+  dashSel.innerHTML = '<option value="">All basins</option>' + BASINS.map(b => `<option value="${b}">${b}</option>`).join('');
+  dashSel.value = basinFilter;
+  dashSel.onchange = () => { basinFilter = dashSel.value; basinSelect.value = basinFilter; refresh(); renderDash(); };
 }
 
 // ---------------- attribute table (per layer, bottom-docked, pushes the map) ----------------
+// Paginated, with a global search box and a per-column filter row. The head/filter row is only
+// rebuilt when the layer actually changes, so typing in a column filter never loses focus.
 function openTable(layerId) {
+  const changed = layerId !== headBuiltFor;
   activeTableLayer = layerId;
-  sortKey = null; sortDir = 1;
-  renderTable();
+  if (changed) {
+    sortKey = null; sortDir = 1; columnFilters = {}; currentPage = 1;
+    renderTableHead(layerById(layerId));
+    headBuiltFor = layerId;
+  }
+  renderTableBody();
 }
 function renderTableHead(layer) {
-  document.getElementById('thead-row').innerHTML = layer.columns.map(([k, l]) =>
+  document.getElementById('thead-row').innerHTML = '<th class="action-col"></th>' + layer.columns.map(([k, l]) =>
     `<th data-k="${k}">${l}${sortKey === k ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('');
-  [...document.querySelectorAll('#thead-row th')].forEach(th => th.onclick = () => {
+  [...document.querySelectorAll('#thead-row th[data-k]')].forEach(th => th.onclick = () => {
     const k = th.dataset.k; if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = 1; }
-    renderTable();
+    renderTableHead(layer); renderTableBody();
+  });
+  document.getElementById('filter-row').innerHTML = '<th class="action-col"></th>' + layer.columns.map(([k]) =>
+    `<th><input class="col-filter" data-k="${k}" placeholder="Filter…" value="${columnFilters[k] || ''}"></th>`).join('');
+  [...document.querySelectorAll('.col-filter')].forEach(inp => inp.oninput = () => {
+    columnFilters[inp.dataset.k] = inp.value; currentPage = 1; renderTableBody();
   });
 }
-function renderTable() {
+function matchesColumnFilters(s) {
+  return Object.entries(columnFilters).every(([k, val]) => !val || String(s[k] ?? '').toLowerCase().includes(val.toLowerCase()));
+}
+function renderTableBody() {
   const layer = layerById(activeTableLayer);
   document.getElementById('table-icon').textContent = layer.id === 'cs' ? 'water_drop' : 'water';
   document.getElementById('table-title').textContent = layer.label + ' — attribute table';
-  renderTableHead(layer);
   const q = (document.getElementById('table-search').value || '').toLowerCase();
-  let rows = visible(layer).filter(s => !q || [s.name, s.river, s.basin, s.id].filter(Boolean).join(' ').toLowerCase().includes(q));
+  let rows = visible(layer).filter(s => (!q || [s.name, s.river, s.basin, s.id].filter(Boolean).join(' ').toLowerCase().includes(q)) && matchesColumnFilters(s));
   if (sortKey) rows = rows.slice().sort((a, b) => {
     let av = a[sortKey], bv = b[sortKey];
     if (av == null) av = typeof bv === 'number' ? -1 : '';
     if (bv == null) bv = typeof av === 'number' ? -1 : '';
     return av > bv ? sortDir : av < bv ? -sortDir : 0;
   });
-  document.getElementById('table-count').textContent = rows.length + ' of ' + visible(layer).length + ' rows';
-  document.getElementById('tbody').innerHTML = rows.map(s => `<tr class="${s.id === selectedId ? 'sel' : ''}" data-id="${s.id}">
-    ${layer.columns.map(([k]) => `<td>${layer.cell(s, k)}</td>`).join('')}</tr>`).join('');
-  [...document.querySelectorAll('#tbody tr')].forEach(tr => tr.onclick = () => selectSite(layer.id, tr.dataset.id));
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * pageSize;
+  const pageRows = rows.slice(start, start + pageSize);
+  document.getElementById('table-count').textContent = (total === 0 ? 0 : start + 1) + '–' + Math.min(start + pageSize, total) + ' of ' + total + ' rows';
+  document.getElementById('tbody').innerHTML = pageRows.map(s => `<tr class="${s.id === selectedId ? 'sel' : ''}" data-id="${s.id}">
+    <td class="action-cell"><button class="row-zoom-btn" title="Zoom to feature"><span class="msym" style="font-size:15px">center_focus_strong</span></button></td>
+    ${layer.columns.map(([k]) => `<td>${layer.cell(s, k)}</td>`).join('')}</tr>`).join('')
+    || `<tr><td colspan="${layer.columns.length + 1}" style="text-align:center;color:#64748b;padding:18px">No rows match the current filters.</td></tr>`;
+  [...document.querySelectorAll('#tbody tr[data-id]')].forEach(tr => {
+    tr.onclick = () => selectSite(layer.id, tr.dataset.id);
+    const btn = tr.querySelector('.row-zoom-btn');
+    if (btn) btn.onclick = e => { e.stopPropagation(); selectSite(layer.id, tr.dataset.id); };
+  });
+  renderPagination(totalPages);
+}
+function renderPagination(totalPages) {
+  document.getElementById('table-pagination').innerHTML = `
+    <button class="page-btn" id="page-prev" ${currentPage <= 1 ? 'disabled' : ''}><span class="msym" style="font-size:16px">chevron_left</span></button>
+    <span class="page-info">Page ${currentPage} of ${totalPages}</span>
+    <button class="page-btn" id="page-next" ${currentPage >= totalPages ? 'disabled' : ''}><span class="msym" style="font-size:16px">chevron_right</span></button>
+    <select class="page-size-select" id="page-size-select">
+      ${[25, 50, 100].map(n => `<option value="${n}" ${n === pageSize ? 'selected' : ''}>${n} / page</option>`).join('')}
+    </select>`;
+  document.getElementById('page-prev').onclick = () => { if (currentPage > 1) { currentPage--; renderTableBody(); } };
+  document.getElementById('page-next').onclick = () => { if (currentPage < totalPages) { currentPage++; renderTableBody(); } };
+  document.getElementById('page-size-select').onchange = e => { pageSize = +e.target.value; currentPage = 1; renderTableBody(); };
 }
 
 // ---------------- rail + side panel + table dock wiring ----------------
@@ -397,7 +493,7 @@ function openTableDock() {
   tableOpen = true;
   document.getElementById('table-dock').classList.add('open');
   setRailOn();
-  renderTable();
+  renderTableBody();
 }
 function closeTableDock() {
   tableOpen = false;
@@ -412,7 +508,7 @@ document.getElementById('rail-table').onclick = () => toggleTableDock();
 document.getElementById('rail-basemap').onclick = () => { document.getElementById('basemap-picker').hidden = !document.getElementById('basemap-picker').hidden; };
 document.getElementById('side-panel-close').onclick = () => closeSidePanel();
 document.getElementById('table-close').onclick = () => closeTableDock();
-document.getElementById('table-search').oninput = renderTable;
+document.getElementById('table-search').oninput = () => { currentPage = 1; renderTableBody(); };
 document.getElementById('nav-map').onclick = () => showView('map');
 document.getElementById('nav-dash').onclick = () => showView('dash');
 document.querySelectorAll('#color-mode button').forEach(b => b.onclick = () => { colorMode = b.dataset.mode; refresh(); });
@@ -420,7 +516,7 @@ document.querySelectorAll('#color-mode button').forEach(b => b.onclick = () => {
 // the map canvas only resizes because the side panel / table dock are real flex items (their
 // width/height is animated, not an overlay) — recalculate Leaflet's internal size once that
 // transition finishes, otherwise tiles stay clipped to the old canvas size.
-['side-panel', 'table-dock'].forEach(id => {
+['side-panel', 'table-dock', 'detail-panel'].forEach(id => {
   document.getElementById(id).addEventListener('transitionend', e => {
     if (e.propertyName === 'width' || e.propertyName === 'height') map.invalidateSize();
   });
@@ -437,7 +533,8 @@ function updateColorButtons() {
   document.querySelectorAll('#color-mode button').forEach(b => b.classList.toggle('on', b.dataset.mode === colorMode));
 }
 function refresh() {
-  updateColorButtons(); buildLegend(); drawMarkers(); renderTable();
+  updateColorButtons(); buildLegend(); drawMarkers();
+  if (tableOpen || headBuiltFor) renderTableBody();
   if (activeSidePanel === 'layers') renderLayersPanel();
   if (activeSidePanel === 'analytics') renderAnalyticsPanel();
 }

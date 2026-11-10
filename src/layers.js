@@ -35,7 +35,10 @@ export const LAYERS = [
     swatch: '#22d3ee', data: csSites, kindLabel: 'Pollution site',
     radius: s => 6 + Math.min(4, Math.round((s.n || 1) / 20)),
     popup: s => `
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="width:9px;height:9px;border-radius:50%;background:${colorFor(s, 'quality')}"></span><b style="font-size:14px">${s.name}</b></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px">
+        <div style="display:flex;align-items:center;gap:6px;min-width:0"><span style="width:9px;height:9px;border-radius:50%;background:${colorFor(s, 'quality')};flex:none"></span><b style="font-size:14px">${s.name}</b></div>
+        <button class="msym" onclick="window.hlOpenDetail && window.hlOpenDetail('cs','${s.id}')" title="Open details panel" style="flex:none;width:22px;height:22px;border-radius:6px;background:#1e293b;border:none;color:#94a3b8;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">open_in_full</button>
+      </div>
       <div style="color:#94a3b8;font-size:11px;margin-bottom:6px">${s.dataset}</div>
       <table style="font-size:11.5px;width:100%">
         ${row('Basin', s.basin)}${row('River', s.river)}${row('Samples', s.n)}
@@ -61,7 +64,10 @@ export const LAYERS = [
     swatch: '#818cf8', data: wruaSites, kindLabel: 'WRUA station',
     radius: () => 5,
     popup: s => `
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="width:9px;height:9px;border-radius:50%;background:${colorFor(s, 'quality')}"></span><b style="font-size:14px">${s.name}</b></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px">
+        <div style="display:flex;align-items:center;gap:6px;min-width:0"><span style="width:9px;height:9px;border-radius:50%;background:${colorFor(s, 'quality')};flex:none"></span><b style="font-size:14px">${s.name}</b></div>
+        <button class="msym" onclick="window.hlOpenDetail && window.hlOpenDetail('wrua','${s.id}')" title="Open details panel" style="flex:none;width:22px;height:22px;border-radius:6px;background:#1e293b;border:none;color:#94a3b8;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">open_in_full</button>
+      </div>
       <div style="color:#94a3b8;font-size:11px;margin-bottom:6px">WRUA monitoring${s.flag ? ' · ⚠ ' + s.flag : ''}</div>
       <table style="font-size:11.5px;width:100%">
         ${row('Basin', s.basin)}${row('Samples', s.n)}
