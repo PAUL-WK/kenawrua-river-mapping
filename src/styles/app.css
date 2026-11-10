@@ -148,12 +148,30 @@ table.attr tbody tr.sel{background:#06b6d422}
 .leaflet-tooltip.tip:before{display:none}
 
 /* full dashboard view */
-#view-dash{overflow-y:auto;padding:20px}
-.dash-wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+#view-dash{overflow-y:auto;padding:24px 32px}
+.dash-wrap{width:100%;display:flex;flex-direction:column;gap:20px}
 .dash-h1{font-size:19px;font-weight:800;color:#fff}
 .dash-p{font-size:12px;color:var(--muted);margin-top:4px}
 .dash-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .dash-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.dash-card-title{font-size:13px;font-weight:700;margin-bottom:12px}
+.bar-list{display:flex;flex-direction:column;gap:9px}
+.dash-row-2-1{display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:start}
+.dash-row-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.dash-col-stack{display:flex;flex-direction:column;gap:20px}
+
+/* donut chart (CSS conic-gradient ring + center label + legend) */
+.donut-row{display:flex;align-items:center;gap:20px}
+.donut{width:110px;height:110px;border-radius:50%;position:relative;flex:none}
+.donut::after{content:'';position:absolute;inset:17px;border-radius:50%;background:var(--panel)}
+.donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.donut-center-val{font-size:19px;font-weight:800}
+.donut-center-sub{font-size:8px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-top:1px}
+.donut-legend{display:flex;flex-direction:column;gap:7px;flex:1;min-width:0}
+.donut-legend-item{display:flex;align-items:center;gap:8px;font-size:12px;color:#cbd5e1}
+.donut-legend-dot{width:9px;height:9px;border-radius:50%;flex:none}
+.donut-legend-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.donut-legend-val{margin-left:auto;font-family:'JetBrains Mono',monospace;color:var(--muted2);font-size:11px;flex:none}
 
 /* ===== mobile ===== */
 @media (max-width: 760px){
@@ -165,6 +183,8 @@ table.attr tbody tr.sel{background:#06b6d422}
   .layers-panel,.hud{top:0;left:0;right:0;bottom:0;width:100%;max-height:100%;border-radius:0;border:none}
   .table-panel{max-height:62vh}
   .dash-stat-grid{grid-template-columns:1fr 1fr}
+  .dash-row-2-1,.dash-row-2{grid-template-columns:1fr}
+  #view-dash{padding:16px}
   .table-search{width:120px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

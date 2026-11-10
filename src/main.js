@@ -195,6 +195,54 @@ function riverBars(rivers, max) {
     <div class="river-bar-track"><div class="river-bar-fill" style="width:${r.index}%;background:${r.index >= 40 ? '#ef4444' : r.index >= 20 ? '#f59e0b' : '#10b981'}"></div></div>
     <div class="river-bar-val">${Math.round(r.index)}</div></div>`).join('') || '<div style="font-size:12px;color:#64748b">No ranked rivers in this basin.</div>';
 }
+// generic horizontal bar chart — reuses the river-bar-* layout for any {label,value,color} list
+function hBarChart(items) {
+  const max = Math.max(1, ...items.map(i => i.value));
+  return items.map(i => `<div class="river-bar-row">
+    <div class="river-bar-name">${i.label}</div>
+    <div class="river-bar-track"><div class="river-bar-fill" style="width:${i.value / max * 100}%;background:${i.color || 'var(--accent)'}"></div></div>
+    <div class="river-bar-val">${i.value}</div></div>`).join('') || '<div style="font-size:12px;color:#64748b">No data.</div>';
+}
+// CSS conic-gradient donut + legend, for any {label,value,color} list
+function donutChart(segments) {
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  let acc = 0;
+  const stops = total ? segments.map(s => {
+    const start = acc / total * 360; acc += s.value; const end = acc / total * 360;
+    return `${s.color} ${start}deg ${end}deg`;
+  }).join(', ') : 'var(--line) 0deg 360deg';
+  return `<div class="donut-row">
+    <div class="donut" style="background:conic-gradient(${stops})">
+      <div class="donut-center"><div class="donut-center-val">${total}</div><div class="donut-center-sub">sites</div></div>
+    </div>
+    <div class="donut-legend">${segments.map(s => `<div class="donut-legend-item"><span class="donut-legend-dot" style="background:${s.color}"></span><span class="donut-legend-label">${s.label}</span><span class="donut-legend-val">${s.value}</span></div>`).join('')}</div>
+  </div>`;
+}
+// quality/status breakdown across both layers — respects the basin filter, like the stat cards
+function qualityStatusTallies(filter) {
+  const all = [...layerById('cs').data, ...layerById('wrua').data].filter(s => !filter || s.basin === filter);
+  const quality = {}, status = {};
+  all.forEach(s => { quality[s.quality] = (quality[s.quality] || 0) + 1; status[s.status] = (status[s.status] || 0) + 1; });
+  return { quality, status };
+}
+// site count per basin, across both layers — always shows the full national spread, since
+// comparing basins is the whole point of this chart (it ignores the current basin filter)
+function basinCounts() {
+  return BASINS.map(b => ({
+    label: b,
+    value: layerById('cs').data.filter(s => s.basin === b).length + layerById('wrua').data.filter(s => s.basin === b).length,
+    color: BASIN_COLOR[b] || '#94a3b8'
+  })).sort((a, b) => b.value - a.value);
+}
+// land-use breakdown for citizen-science sites only (WRUA stations don't carry this field)
+function landuseCounts(filter) {
+  const counts = {};
+  layerById('cs').data.filter(s => !filter || s.basin === filter).forEach(s => {
+    const lu = s.landuse ? s.landuse.replace(/_/g, ' ') : 'Unknown';
+    counts[lu] = (counts[lu] || 0) + 1;
+  });
+  return Object.entries(counts).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+}
 function renderHud() {
   document.getElementById('hud-scope').textContent = basinFilter || 'All basins';
   const st = basinStats(basinFilter);
@@ -210,6 +258,11 @@ function renderHud() {
 }
 function renderDash() {
   const st = basinStats(basinFilter);
+  const { quality, status } = qualityStatusTallies(basinFilter);
+  const qualitySegs = Object.entries(quality).map(([key, value]) => ({ label: Q[key] ? Q[key].label : key, value, color: Q[key] ? Q[key].c : '#94a3b8' }));
+  const statusSegs = Object.entries(status).map(([key, value]) => ({ label: ST[key] ? ST[key].label : key, value, color: ST[key] ? ST[key].c : '#94a3b8' }));
+  const basinBars = basinCounts().map(b => ({ ...b, label: b.label.length > 18 ? b.label.slice(0, 16) + '…' : b.label }));
+  const landuseBars = landuseCounts(basinFilter).map(l => ({ ...l, color: '#38bdf8' }));
   document.getElementById('dash-wrap').innerHTML = `
     <div><div class="dash-h1">Basin Analytics — ${basinFilter || 'All basins'}</div><div class="dash-p">Demonstration prototype built from WRUA and citizen-science monitoring records shared with KeNAWRUA.</div></div>
     <div class="dash-stat-grid">
@@ -218,9 +271,31 @@ function renderDash() {
       ${statCard('WRUA stations', st.wr, 'pH / dissolved oxygen')}
       ${statCard('Avg. pollution idx', st.avgIdx == null ? '–' : Math.round(st.avgIdx))}
     </div>
-    <div class="dash-card">
-      <div style="font-size:13px;font-weight:700;margin-bottom:12px">Rivers ranked by pollution index</div>
-      <div style="display:flex;flex-direction:column;gap:9px">${riverBars(st.rivers, 13)}</div>
+    <div class="dash-row-2-1">
+      <div class="dash-card">
+        <div class="dash-card-title">Rivers ranked by pollution index</div>
+        <div class="bar-list">${riverBars(st.rivers, 13)}</div>
+      </div>
+      <div class="dash-col-stack">
+        <div class="dash-card">
+          <div class="dash-card-title">Water quality</div>
+          ${donutChart(qualitySegs)}
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-title">Monitoring status</div>
+          ${donutChart(statusSegs)}
+        </div>
+      </div>
+    </div>
+    <div class="dash-row-2">
+      <div class="dash-card">
+        <div class="dash-card-title">Sites by basin</div>
+        <div class="bar-list">${hBarChart(basinBars)}</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-title">Citizen-science sites by land use</div>
+        <div class="bar-list">${hBarChart(landuseBars)}</div>
+      </div>
     </div>
     <div class="dash-stat-grid" style="grid-template-columns:repeat(3,1fr)">
       ${statCard('Actively sampled', st.active, 'sampled in the last 18 months')}
