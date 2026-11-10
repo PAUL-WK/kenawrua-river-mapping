@@ -187,14 +187,17 @@ function drawMarkers() {
       const col = colorFor(s, colorMode);
       const m = L.circleMarker([s.lat, s.lon], { radius: l.radius(s), color: '#0f172a', weight: 1.5, fillColor: col, fillOpacity: 0.9 })
         .bindPopup(l.popup(s)).bindTooltip(s.name, { className: 'site-label', permanent: true, direction: 'right', offset: [7, 0] });
-      m.on('click', () => selectSite(l.id, s.id));
+      // clicking a point on the map should just show its popup — not also force the
+      // attribute table open (that's only for selecting a row from the table itself).
+      m.on('click', () => selectSite(l.id, s.id, { openTable: false }));
       markerById[l.id + ':' + s.id] = m;
       grp.addLayer(m);
     });
   });
 }
 
-function selectSite(layerId, id) {
+function selectSite(layerId, id, opts = {}) {
+  const shouldOpenTable = opts.openTable !== false;
   selectedId = id;
   // selecting a row (or its zoom button) should always show the point on the map, even if
   // its layer was switched off — otherwise the marker was never drawn and nothing happens.
@@ -211,8 +214,14 @@ function selectSite(layerId, id) {
     m.openPopup();
     flashMarker(m);
   }
-  openTable(layerId);
-  openTableDock();
+  if (shouldOpenTable) {
+    openTable(layerId);
+    openTableDock();
+  } else if (tableOpen) {
+    // table is already open for another reason — keep it in sync with the new selection,
+    // but don't force it open just because a point was clicked on the map.
+    openTable(layerId);
+  }
 }
 
 // brief double-pulse highlight on the marker just flown to
@@ -237,7 +246,7 @@ window.hlOpenDetail = function (layerId, id) {
   if (!s) return;
   document.getElementById('detail-panel-title').textContent = s.name;
   document.getElementById('detail-panel-sub').textContent = layer.label;
-  document.getElementById('detail-panel-body').innerHTML = layer.popup(s);
+  document.getElementById('detail-panel-body').innerHTML = layer.detail(s);
   document.getElementById('detail-panel').classList.add('open');
   map.closePopup();
 };

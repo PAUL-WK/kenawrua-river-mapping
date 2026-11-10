@@ -64,7 +64,16 @@ input{font:inherit}
 .detail-panel{flex:none;width:0;overflow:hidden;background:var(--panel);border-left:1px solid var(--line);transition:width .22s ease}
 .detail-panel.open{width:min(360px,calc(100vw - 56px))}
 .detail-panel-inner{width:360px;height:100%;display:flex;flex-direction:column}
-.detail-panel-body{padding:16px;overflow-y:auto;flex:1}
+.detail-panel-body{padding:20px;overflow-y:auto;flex:1}
+
+/* detail panel rows — one label/value pair per row with generous spacing, since the panel
+   has far more room than a map popup and a dense table here just looks congested */
+.detail-sub{color:var(--muted2);font-size:12px;margin-bottom:18px}
+.detail-rows{display:flex;flex-direction:column}
+.detail-row{padding:14px 0;border-bottom:1px solid var(--line-soft)}
+.detail-row:last-child{border-bottom:none}
+.detail-row-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted2);font-family:'JetBrains Mono',monospace}
+.detail-row-val{font-size:17px;font-weight:700;color:#fff;margin-top:4px}
 
 .map-col{flex:1;min-width:0;display:flex;flex-direction:column}
 .map-stage{flex:1;min-height:0;position:relative}
