@@ -359,6 +359,9 @@ function renderDash() {
       ${statCard('Citizen-science', st.cs, 'nitrate / phosphate / turbidity')}
       ${statCard('WRUA stations', st.wr, 'pH / dissolved oxygen')}
       ${statCard('Avg. pollution idx', st.avgIdx == null ? '–' : Math.round(st.avgIdx))}
+      ${statCard('Actively sampled', st.active, 'sampled in the last 18 months')}
+      ${statCard('Inactive / stale', st.stale, 'no recent sample')}
+      ${statCard('Low-oxygen WRUA sites', st.lowDO, 'DO below 5 mg/L')}
     </div>
     <div class="dash-row-2-1">
       <div class="dash-card">
@@ -385,11 +388,6 @@ function renderDash() {
         <div class="dash-card-title">Citizen-science sites by land use</div>
         <div class="bar-list">${hBarChart(landuseBars)}</div>
       </div>
-    </div>
-    <div class="dash-stat-grid" style="grid-template-columns:repeat(3,1fr)">
-      ${statCard('Actively sampled', st.active, 'sampled in the last 18 months')}
-      ${statCard('Inactive / stale', st.stale, 'no recent sample')}
-      ${statCard('Low-oxygen WRUA sites', st.lowDO, 'DO below 5 mg/L')}
     </div>
     <div style="font-size:11px;color:#64748b;border-top:1px solid #1e293b;padding-top:12px">Coverage caveat: this demonstration holds data for 50 of KeNAWRUA's 756 national WRUAs. Treat unmapped areas as data gaps, not confirmed inactivity.</div>`;
   const dashSel = document.getElementById('dash-basin-select');
