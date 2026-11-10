@@ -108,6 +108,7 @@ let pageSize = 50;
 let headBuiltFor = null;
 let activeSidePanel = null; // null | 'layers' | 'analytics'
 let tableOpen = false;
+let basinsOn = true;
 const layerOn = Object.fromEntries(LAYERS.map(l => [l.id, true]));
 const markerById = {};
 
@@ -122,6 +123,13 @@ basinSelect.onchange = () => { basinFilter = basinSelect.value; refresh(); };
 // but top-right keeps the zoom buttons clear of both.
 const map = L.map('map', { zoomSnap: 0.25, zoomControl: false }).fitBounds([[-3.3, 34.4], [0.9, 38.4]]);
 L.control.zoom({ position: 'topright' }).addTo(map);
+
+// permanent site/WRUA labels get unreadable zoomed all the way out over 100+ points —
+// only show them once the user has zoomed in past the whole-country overview.
+function updateLabelVisibility() {
+  document.getElementById('map').classList.toggle('hide-labels', map.getZoom() < 9);
+}
+map.on('zoomend', updateLabelVisibility);
 
 // ---------------- basemaps ----------------
 // Real raster tiles instead of a hand-drawn dark vector basemap — OpenStreetMap is the default,
@@ -150,7 +158,9 @@ function buildBasemapPicker() {
 buildBasemapPicker();
 
 // Approximate WRUA basin outlines, drawn over the real basemap for orientation.
-const basinLayer = L.layerGroup().addTo(map);
+// Kept as its own toggleable layer group (not part of LAYERS, since it has no attribute table).
+const basinLayer = L.layerGroup();
+if (basinsOn) basinLayer.addTo(map);
 const basinPane = map.createPane('basins'); basinPane.style.zIndex = 450;
 Object.entries(BASIN_EXTENTS).forEach(([b, pts]) => {
   const c = BASIN_COLOR[b] || '#94a3b8';
@@ -158,6 +168,10 @@ Object.entries(BASIN_EXTENTS).forEach(([b, pts]) => {
   const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
   basinLayer.addLayer(L.marker([cy, cx], { pane: 'basins', interactive: false, icon: L.divIcon({ className: '', html: `<div style="font:700 11px Inter;letter-spacing:.12em;text-transform:uppercase;color:${c};text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 4px #fff">${b}</div>`, iconSize: null }) }));
 });
+function toggleBasins(on) {
+  basinsOn = on;
+  if (on) basinLayer.addTo(map); else map.removeLayer(basinLayer);
+}
 
 const leafletLayerGroup = {};
 LAYERS.forEach(l => { leafletLayerGroup[l.id] = L.layerGroup().addTo(map); });
@@ -172,7 +186,7 @@ function drawMarkers() {
     visible(l).forEach(s => {
       const col = colorFor(s, colorMode);
       const m = L.circleMarker([s.lat, s.lon], { radius: l.radius(s), color: '#0f172a', weight: 1.5, fillColor: col, fillOpacity: 0.9 })
-        .bindPopup(l.popup(s)).bindTooltip(s.name, { className: 'tip', direction: 'top', offset: [0, -8] });
+        .bindPopup(l.popup(s)).bindTooltip(s.name, { className: 'site-label', permanent: true, direction: 'right', offset: [7, 0] });
       m.on('click', () => selectSite(l.id, s.id));
       markerById[l.id + ':' + s.id] = m;
       grp.addLayer(m);
@@ -229,6 +243,23 @@ function renderLayersPanel() {
   const body = document.getElementById('side-panel-body');
   body.innerHTML = '<div class="layer-rows" id="layer-rows"></div>';
   const rowsEl = document.getElementById('layer-rows');
+
+  // reference layer: basin boundaries — not part of LAYERS (it has no attribute table of its own)
+  const refGroup = document.createElement('div'); refGroup.className = 'layer-group-label'; refGroup.textContent = 'Reference';
+  rowsEl.appendChild(refGroup);
+  const basinRow = document.createElement('div'); basinRow.className = 'layer-row';
+  basinRow.innerHTML = `
+    <label>
+      <input type="checkbox" ${basinsOn ? 'checked' : ''}>
+      <span>
+        <span style="display:flex;align-items:center;gap:7px"><span class="layer-swatch" style="background:linear-gradient(135deg,#a78bfa,#34d399,#60a5fa,#fb923c,#f472b6)"></span><span class="layer-name">Basin boundaries</span></span>
+        <span class="layer-sub">Approximate WRUA basin outlines</span>
+      </span>
+    </label>
+    <span class="layer-count">${BASINS.length}</span>`;
+  basinRow.querySelector('input').onchange = e => toggleBasins(e.target.checked);
+  rowsEl.appendChild(basinRow);
+
   let lastGroup = null;
   LAYERS.forEach(l => {
     if (l.group !== lastGroup) { lastGroup = l.group; const g = document.createElement('div'); g.className = 'layer-group-label'; g.textContent = l.group; rowsEl.appendChild(g); }
@@ -539,5 +570,6 @@ function refresh() {
 
 refresh();
 openTable(LAYERS[0].id);
+updateLabelVisibility();
 window.addEventListener('resize', () => map.invalidateSize());
 setTimeout(() => map.invalidateSize(), 80);
