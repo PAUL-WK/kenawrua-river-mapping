@@ -94,7 +94,10 @@ BASINS.forEach(b => { const o = document.createElement('option'); o.value = b; o
 basinSelect.onchange = () => { basinFilter = basinSelect.value; refresh(); };
 
 // ---------------- map ----------------
-const map = L.map('map', { zoomSnap: 0.25, attributionControl: true }).fitBounds([[-3.3, 34.4], [0.9, 38.4]]);
+// zoomControl: false — the default top-left position collides with the layers FAB/panel,
+// which also live in that corner. Re-added top-right below instead (see leaflet overrides in app.css).
+const map = L.map('map', { zoomSnap: 0.25, attributionControl: true, zoomControl: false }).fitBounds([[-3.3, 34.4], [0.9, 38.4]]);
+L.control.zoom({ position: 'topright' }).addTo(map);
 map.attributionControl.setPrefix(false).addAttribution('Natural Earth · WRUA &amp; FreshWater Watch data · demonstration prototype');
 map.createPane('basemap').style.zIndex = 250;
 
