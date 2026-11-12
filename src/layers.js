@@ -37,6 +37,22 @@ const BASIN_ALIAS = {
 export function normBasin(b) { return BASIN_ALIAS[b] || b; }
 
 const fmt = (v, d = 1) => (v == null ? '–' : (+v).toFixed(d));
+// colored inline value — lets a single metric (nitrate, pH, …) carry the same tier color as
+// the legend, so a reader can see at a glance which metric is driving the overall category
+function tint(text, color) { return `<span style="color:${color};font-weight:700">${text}</span>`; }
+function tierOf(val, edges) {
+  if (val == null) return null;
+  if (val < edges[0]) return 0;
+  if (val < edges[1]) return 1;
+  if (val < edges[2]) return 2;
+  return 3;
+}
+const POLL_KEYS = ['good', 'elevated', 'poor', 'severe'];
+function nitrateColor(v) { const t = tierOf(v, [0.2, 1, 5]); return t == null ? POLLUTION_CAT.nodata.c : POLLUTION_CAT[POLL_KEYS[t]].c; }
+function phosphateColor(v) { const t = tierOf(v, [0.02, 0.1, 0.5]); return t == null ? POLLUTION_CAT.nodata.c : POLLUTION_CAT[POLL_KEYS[t]].c; }
+function turbidityColor(v) { const t = tierOf(v, [14, 100, 240]); return t == null ? POLLUTION_CAT.nodata.c : POLLUTION_CAT[POLL_KEYS[t]].c; }
+function phColor(v) { if (v == null) return HEALTH_CAT.nodata.c; return (v >= 6.5 && v <= 8.5) ? HEALTH_CAT.healthy.c : HEALTH_CAT.stressed.c; }
+function doColor(v) { if (v == null) return HEALTH_CAT.nodata.c; return v >= 5 ? HEALTH_CAT.healthy.c : HEALTH_CAT.stressed.c; }
 
 // ---- fixed, band-aligned classification scales (never quantile-based: the breakpoints are
 // the real band edges in the source data, so a reading is never ambiguously on a boundary) ----
@@ -111,8 +127,10 @@ export const LAYERS = [
     dashed: s => s.precision === 'band',
     rows: s => [
       ['Basin', normBasin(s.basin)], ['WRUA', s.wrua || '–'], ['Month', s._reading.month],
-      ['Nitrate-N', fmt(s._reading.nitrate, 2) + ' mg/L'], ['Phosphate-P', fmt(s._reading.phosphate, 3) + ' mg/L'],
-      ['Turbidity', fmt(s._reading.turbidity, 0) + ' NTU'], ['Category', POLLUTION_CAT[s._reading.category].label],
+      ['Nitrate-N', tint(fmt(s._reading.nitrate, 2) + ' mg/L', nitrateColor(s._reading.nitrate))],
+      ['Phosphate-P', tint(fmt(s._reading.phosphate, 3) + ' mg/L', phosphateColor(s._reading.phosphate))],
+      ['Turbidity', tint(fmt(s._reading.turbidity, 0) + ' NTU', turbidityColor(s._reading.turbidity))],
+      ['Category', tint(POLLUTION_CAT[s._reading.category].label, POLLUTION_CAT[s._reading.category].c)],
       ['Reading type', s.precision === 'band' ? 'Semi-quantitative band' : 'Instrument'],
       ['Samples total', s.n], ['First → last', s.first + ' → ' + s.last]
     ],
@@ -125,9 +143,9 @@ export const LAYERS = [
     cell: (s, k) => {
       if (k === 'basin') return normBasin(s.basin);
       if (k === 'category') return catBadge(POLLUTION_CAT, s._reading.category);
-      if (k === 'nitrate') return fmt(s._reading.nitrate, 2);
-      if (k === 'phosphate') return fmt(s._reading.phosphate, 3);
-      if (k === 'turbidity') return fmt(s._reading.turbidity, 0);
+      if (k === 'nitrate') return tint(fmt(s._reading.nitrate, 2), nitrateColor(s._reading.nitrate));
+      if (k === 'phosphate') return tint(fmt(s._reading.phosphate, 3), phosphateColor(s._reading.phosphate));
+      if (k === 'turbidity') return tint(fmt(s._reading.turbidity, 0), turbidityColor(s._reading.turbidity));
       return s[k] ?? '–';
     }
   },
@@ -139,8 +157,10 @@ export const LAYERS = [
     dashed: () => false,
     rows: s => [
       ['Basin', normBasin(s.basin)], ['WRUA', s.wrua || '–'], ['Month', s._reading.month],
-      ['pH', fmt(s._reading.pH, 1)], ['Dissolved oxygen', fmt(s._reading.DO, 1) + ' mg/L'],
-      ['Temperature', fmt(s._reading.temp, 0) + ' °C'], ['Category', HEALTH_CAT[s._reading.category].label],
+      ['pH', tint(fmt(s._reading.pH, 1), phColor(s._reading.pH))],
+      ['Dissolved oxygen', tint(fmt(s._reading.DO, 1) + ' mg/L', doColor(s._reading.DO))],
+      ['Temperature', fmt(s._reading.temp, 0) + ' °C'],
+      ['Category', tint(HEALTH_CAT[s._reading.category].label, HEALTH_CAT[s._reading.category].c)],
       ['Samples total', s.n], ['First → last', s.first + ' → ' + s.last],
       ...(s.basin && s.basin.toLowerCase().includes('tana') && s.tab === 'NBO_River'
         ? [['Basin note', 'Inferred by nearest station — not confirmed']] : [])
@@ -154,8 +174,8 @@ export const LAYERS = [
     cell: (s, k) => {
       if (k === 'basin') return normBasin(s.basin);
       if (k === 'category') return catBadge(HEALTH_CAT, s._reading.category);
-      if (k === 'pH') return fmt(s._reading.pH, 1);
-      if (k === 'DO') return fmt(s._reading.DO, 1);
+      if (k === 'pH') return tint(fmt(s._reading.pH, 1), phColor(s._reading.pH));
+      if (k === 'DO') return tint(fmt(s._reading.DO, 1), doColor(s._reading.DO));
       return s[k] ?? '–';
     }
   }

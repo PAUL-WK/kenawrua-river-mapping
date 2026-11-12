@@ -52,10 +52,13 @@ app.innerHTML = `
         </div>
         <div class="time-bar" id="time-bar">
           <button class="time-play" id="time-play" title="Play / pause"><span class="msym" id="time-play-icon" style="font-size:18px">play_arrow</span></button>
+          <button class="time-cal-btn" id="time-cal-left" title="Jump to a specific month"><span class="msym" style="font-size:16px">calendar_month</span></button>
           <div class="time-track-wrap">
             <input type="range" id="time-slider" class="time-slider" min="0" max="${ALL_MONTHS.length - 1}" step="1" value="${ALL_MONTHS.length - 1}">
           </div>
+          <button class="time-cal-btn" id="time-cal-right" title="Jump to a specific month"><span class="msym" style="font-size:16px">calendar_month</span></button>
           <div class="time-label mono" id="time-label"></div>
+          <div class="time-cal-popover" id="time-cal-popover" hidden></div>
         </div>
         <div class="map-stage">
           <div id="map"></div>
@@ -108,12 +111,19 @@ let headBuiltFor = null;
 let activeSidePanel = null;
 let tableOpen = false;
 let basinsOn = true;
-const layerOn = Object.fromEntries(LAYERS.map(l => [l.id, true]));
+// only the first layer (Nutrient Pollution) is active by default — the legend below mirrors
+// whichever layer(s) are on, so it starts showing just one scale; switching layers on/off in
+// the Layers panel grows or shrinks it accordingly.
+const layerOn = Object.fromEntries(LAYERS.map((l, i) => [l.id, i === 0]));
 const markerById = {};
 
 let sliderIdx = ALL_MONTHS.length - 1;
 let playing = false;
 let playTimer = null;
+// tracks whatever the detail panel / an open marker popup is currently showing, so both can be
+// refreshed in place as the time slider moves instead of freezing at the values they opened with
+let detailShown = null; // {layerId, id} | null
+let popupShown = null;  // {layerId, id} | null
 function currentMonth() { return ALL_MONTHS[sliderIdx]; }
 function currentData(layer) { return asOf(layer.data, currentMonth()); }
 
@@ -180,6 +190,10 @@ LAYERS.forEach(l => { leafletLayerGroup[l.id] = L.layerGroup().addTo(map); });
 function visible(layer) { return currentData(layer).filter(s => !basinFilter || normBasin(s.basin) === basinFilter); }
 
 function drawMarkers() {
+  // clearing a layer group implicitly fires Leaflet's popupclose (which nulls popupShown via
+  // the listener below) before we get a chance to redraw — snapshot it first so we know what
+  // to try to reopen once the new markers exist.
+  const reopenPopup = popupShown;
   LAYERS.forEach(l => {
     const grp = leafletLayerGroup[l.id];
     grp.clearLayers();
@@ -196,6 +210,12 @@ function drawMarkers() {
       grp.addLayer(m);
     });
   });
+  // re-open whatever popup was showing before this redraw — only if that site still has a
+  // reading as of the current slider position (its marker will exist in markerById if so).
+  if (reopenPopup) {
+    const m = markerById[reopenPopup.layerId + ':' + reopenPopup.id];
+    if (m) { m.openPopup(); popupShown = reopenPopup; } else { popupShown = null; }
+  }
 }
 
 function selectSite(layerId, id, opts = {}) {
@@ -203,6 +223,7 @@ function selectSite(layerId, id, opts = {}) {
   selectedId = id;
   if (!layerOn[layerId]) {
     layerOn[layerId] = true;
+    buildLegend();
     drawMarkers();
     if (activeSidePanel === 'layers') renderLayersPanel();
   }
@@ -211,6 +232,7 @@ function selectSite(layerId, id, opts = {}) {
     const targetZoom = Math.max(map.getZoom(), 11);
     map.setView(m.getLatLng(), targetZoom);
     m.openPopup();
+    popupShown = { layerId, id };
     flashMarker(m);
   }
   if (shouldOpenTable) {
@@ -220,6 +242,7 @@ function selectSite(layerId, id, opts = {}) {
     openTable(layerId);
   }
   if (document.getElementById('detail-panel').classList.contains('open')) {
+    detailShown = { layerId, id };
     updateDetailPanel(layerId, id);
   }
 }
@@ -241,18 +264,24 @@ function flashMarker(m) {
 function updateDetailPanel(layerId, id) {
   const layer = layerById(layerId);
   const s = currentData(layer).find(x => x.id === id);
-  if (!s) return;
+  document.getElementById('detail-panel-sub').textContent = layer.label + ' · as of ' + monthLabel(currentMonth());
+  if (!s) {
+    document.getElementById('detail-panel-body').innerHTML =
+      '<div style="padding:18px;text-align:center;color:#64748b;font-size:12px">This site has no reading yet as of ' + monthLabel(currentMonth()) + '. Move the time slider forward to see it appear.</div>';
+    return;
+  }
   document.getElementById('detail-panel-title').textContent = s.name;
-  document.getElementById('detail-panel-sub').textContent = layer.label;
   document.getElementById('detail-panel-body').innerHTML = layer.detail(s);
 }
 
 window.hlOpenDetail = function (layerId, id) {
+  detailShown = { layerId, id };
   updateDetailPanel(layerId, id);
   document.getElementById('detail-panel').classList.add('open');
   map.closePopup();
 };
-document.getElementById('detail-panel-close').onclick = () => document.getElementById('detail-panel').classList.remove('open');
+document.getElementById('detail-panel-close').onclick = () => { detailShown = null; document.getElementById('detail-panel').classList.remove('open'); };
+map.on('popupclose', () => { popupShown = null; });
 
 // ---------------- side panel: layers ----------------
 function renderLayersPanel() {
@@ -292,7 +321,7 @@ function renderLayersPanel() {
       </label>
       <span class="layer-count">${n}</span>
       <button class="layer-table-btn" title="Open ${l.label} attribute table"><span class="msym" style="font-size:16px">table_rows</span></button>`;
-    row.querySelector('input').onchange = e => { layerOn[l.id] = e.target.checked; drawMarkers(); renderLayersPanel(); };
+    row.querySelector('input').onchange = e => { layerOn[l.id] = e.target.checked; refresh(); renderLayersPanel(); };
     row.querySelector('.layer-table-btn').onclick = () => { openTable(l.id); openTableDock(); };
     rowsEl.appendChild(row);
   });
@@ -340,6 +369,49 @@ function startPlaying() {
 document.getElementById('time-play').onclick = () => { playing ? stopPlaying() : startPlaying(); };
 updateTimeLabel();
 
+// -------- year/month jump popover, opened from the calendar icon on either edge of the track --------
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function renderCalMonthGrid(year) {
+  const [curY, curM] = currentMonth().split('-').map(Number);
+  const grid = document.getElementById('cal-month-grid');
+  grid.innerHTML = MONTH_NAMES.map((nm, i) => {
+    const m = i + 1;
+    const ym = `${year}-${String(m).padStart(2, '0')}`;
+    const idx = ALL_MONTHS.indexOf(ym);
+    const on = year === curY && m === curM;
+    return `<button class="cal-month-btn ${on ? 'on' : ''}" ${idx === -1 ? 'disabled' : ''} data-idx="${idx}">${nm}</button>`;
+  }).join('');
+  [...grid.querySelectorAll('.cal-month-btn:not([disabled])')].forEach(b => b.onclick = () => {
+    stopPlaying();
+    setSlider(+b.dataset.idx);
+    closeCalPopover();
+  });
+}
+function buildCalPopover() {
+  const y0 = +ALL_MONTHS[0].slice(0, 4), y1 = +ALL_MONTHS[ALL_MONTHS.length - 1].slice(0, 4);
+  const years = []; for (let y = y0; y <= y1; y++) years.push(y);
+  const curY = +currentMonth().slice(0, 4);
+  const pop = document.getElementById('time-cal-popover');
+  pop.innerHTML = `
+    <select class="cal-year-select" id="cal-year">${years.map(y => `<option value="${y}" ${y === curY ? 'selected' : ''}>${y}</option>`).join('')}</select>
+    <div class="cal-month-grid" id="cal-month-grid"></div>`;
+  renderCalMonthGrid(curY);
+  document.getElementById('cal-year').onchange = e => renderCalMonthGrid(+e.target.value);
+}
+function closeCalPopover() { document.getElementById('time-cal-popover').hidden = true; }
+function toggleCalPopover() {
+  const pop = document.getElementById('time-cal-popover');
+  if (pop.hidden) { buildCalPopover(); pop.hidden = false; } else { closeCalPopover(); }
+}
+document.getElementById('time-cal-left').onclick = toggleCalPopover;
+document.getElementById('time-cal-right').onclick = toggleCalPopover;
+document.addEventListener('click', e => {
+  const pop = document.getElementById('time-cal-popover');
+  if (!pop.hidden && !pop.contains(e.target) && e.target.id !== 'time-cal-left' && e.target.id !== 'time-cal-right' && !e.target.closest('#time-cal-left') && !e.target.closest('#time-cal-right')) {
+    closeCalPopover();
+  }
+});
+
 // ---------------- basin stats (shared by side panel + full dashboard) ----------------
 function basinStats(filter) {
   const layerSets = LAYERS.map(l => currentData(l).filter(s => !filter || normBasin(s.basin) === filter));
@@ -352,7 +424,13 @@ function basinStats(filter) {
   });
   return { total, perLayer: Object.fromEntries(LAYERS.map((l, i) => [l.id, layerSets[i].length])), counts };
 }
-function statCard(label, val, sub) { return `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-val">${val}</div>${sub ? `<div class="stat-sub">${sub}</div>` : ''}</div>`; }
+function statCard(label, val, sub, color) {
+  return `<div class="stat-card"${color ? ` style="border-left:3px solid ${color}"` : ''}>
+    <div class="stat-label">${label}</div>
+    <div class="stat-val"${color ? ` style="color:${color}"` : ''}>${val}</div>
+    ${sub ? `<div class="stat-sub">${sub}</div>` : ''}
+  </div>`;
+}
 function hBarChart(items) {
   const max = Math.max(1, ...items.map(i => i.value));
   return items.map(i => `<div class="river-bar-row">
@@ -381,6 +459,43 @@ function basinCounts(filter) {
     color: BASIN_COLOR[b] || '#94a3b8'
   })).sort((a, b) => b.value - a.value);
 }
+// per-month reading counts (actual readings that month, not the slider's lookback) — shows
+// when each programme's monitoring actually ran, as a small bar chart
+function monthlyActivity(layer, filter) {
+  const counts = Object.fromEntries(ALL_MONTHS.map(m => [m, 0]));
+  layer.data.filter(s => !filter || normBasin(s.basin) === filter).forEach(s => {
+    s.readings.forEach(rd => { counts[rd.month]++; });
+  });
+  return ALL_MONTHS.map(m => ({ month: m, label: monthLabel(m), value: counts[m] }));
+}
+function monthBarChart(items, color) {
+  const max = Math.max(1, ...items.map(i => i.value));
+  return `<div class="month-chart">${items.map((it, i) => `
+    <div class="month-chart-col" title="${it.label}: ${it.value}">
+      <div class="month-chart-bar" style="height:${Math.max(2, it.value / max * 100)}%;background:${color}"></div>
+      ${i % 6 === 0 ? `<div class="month-chart-lbl">${it.label}</div>` : ''}
+    </div>`).join('')}</div>`;
+}
+function precisionCounts(filter) {
+  const sites = currentData(layerById('pollution')).filter(s => !filter || normBasin(s.basin) === filter);
+  let instrument = 0, band = 0;
+  sites.forEach(s => { if (s.precision === 'band') band++; else instrument++; });
+  return [{ label: 'Instrument', value: instrument, color: '#22d3ee' }, { label: 'Band (semi-quantitative)', value: band, color: '#a78bfa' }];
+}
+function worstSites(layer, filter, n = 6) {
+  const worstKey = layer.id === 'pollution' ? 'severe' : 'stressed';
+  return currentData(layer).filter(s => !filter || normBasin(s.basin) === filter)
+    .filter(s => s._reading.category === worstKey)
+    .sort((a, b) => b.n - a.n).slice(0, n);
+}
+function worstList(sites, layer) {
+  if (!sites.length) return '<div style="font-size:12px;color:#64748b;padding:8px 0">None at the current month — nothing in the worst category.</div>';
+  return sites.map(s => `<div class="worst-row" data-layer="${layer.id}" data-id="${s.id}">
+    <span class="worst-dot" style="background:${layer.colorFor(s)}"></span>
+    <span class="worst-name">${s.name}</span>
+    <span class="worst-basin">${normBasin(s.basin)}</span>
+  </div>`).join('');
+}
 
 // ---------------- side panel: basin analytics ----------------
 function renderAnalyticsPanel() {
@@ -407,17 +522,22 @@ function renderDash() {
   const pollSegs = Object.entries(st.counts.pollution || {}).map(([k, v]) => ({ label: layerById('pollution').cat[k].label, value: v, color: layerById('pollution').cat[k].c }));
   const healthSegs = Object.entries(st.counts.health || {}).map(([k, v]) => ({ label: layerById('health').cat[k].label, value: v, color: layerById('health').cat[k].c }));
   const basinBars = basinCounts(basinFilter).map(b => ({ ...b, label: b.label.length > 18 ? b.label.slice(0, 16) + '…' : b.label }));
+  const precSegs = precisionCounts(basinFilter);
+  const pollActivity = monthlyActivity(layerById('pollution'), basinFilter);
+  const healthActivity = monthlyActivity(layerById('health'), basinFilter);
+  const worstPoll = worstSites(layerById('pollution'), basinFilter);
+  const worstHealth = worstSites(layerById('health'), basinFilter);
   document.getElementById('dash-wrap').innerHTML = `
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
       <div><div class="dash-h1">Basin Analytics — ${basinFilter || 'All basins'}</div><div class="dash-p">Snapshot as of ${monthLabel(currentMonth())}. Demonstration prototype built from WRUA and citizen-science monitoring records shared with KeNAWRUA.</div></div>
       <div class="chipbar"><span class="msym" style="font-size:16px;color:#06b6d4">travel_explore</span><select id="dash-basin-select"></select></div>
     </div>
     <div class="dash-stat-grid">
-      ${statCard('Total sites shown', st.total)}
-      ${statCard('Pollution sites', st.perLayer.pollution, 'nitrate / phosphate / turbidity')}
-      ${statCard('Health sites', st.perLayer.health, 'pH / dissolved oxygen')}
-      ${statCard('Severe pollution', (st.counts.pollution || {}).severe || 0)}
-      ${statCard('Stressed health', (st.counts.health || {}).stressed || 0)}
+      ${statCard('Total sites shown', st.total, null, '#22d3ee')}
+      ${statCard('Pollution sites', st.perLayer.pollution, 'nitrate / phosphate / turbidity', '#22d3ee')}
+      ${statCard('Health sites', st.perLayer.health, 'pH / dissolved oxygen', '#818cf8')}
+      ${statCard('Severe pollution', (st.counts.pollution || {}).severe || 0, null, '#ef4444')}
+      ${statCard('Stressed health', (st.counts.health || {}).stressed || 0, null, '#ef4444')}
     </div>
     <div class="dash-row-2">
       <div class="dash-card">
@@ -429,16 +549,51 @@ function renderDash() {
         ${donutChart(healthSegs)}
       </div>
     </div>
-    <div class="dash-card">
-      <div class="dash-card-title">Sites by basin</div>
-      <div class="bar-list">${hBarChart(basinBars)}</div>
+    <div class="dash-row-2">
+      <div class="dash-card">
+        <div class="dash-card-title">Nutrient Pollution — monitoring activity</div>
+        <div class="dash-card-sub">Readings recorded each month</div>
+        ${monthBarChart(pollActivity, '#22d3ee')}
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-title">River Health — monitoring activity</div>
+        <div class="dash-card-sub">Readings recorded each month</div>
+        ${monthBarChart(healthActivity, '#818cf8')}
+      </div>
+    </div>
+    <div class="dash-row-2-1">
+      <div class="dash-col-stack">
+        <div class="dash-card">
+          <div class="dash-card-title">Worst — Nutrient Pollution <span class="dash-card-badge" style="background:${POLL_SEVERE_C}22;color:${POLL_SEVERE_C}">Severe</span></div>
+          ${worstList(worstPoll, layerById('pollution'))}
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-title">Worst — River Health <span class="dash-card-badge" style="background:${HEALTH_STRESSED_C}22;color:${HEALTH_STRESSED_C}">Stressed</span></div>
+          ${worstList(worstHealth, layerById('health'))}
+        </div>
+      </div>
+      <div class="dash-col-stack">
+        <div class="dash-card">
+          <div class="dash-card-title">Nutrient Pollution — reading precision</div>
+          ${donutChart(precSegs)}
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-title">Sites by basin</div>
+          <div class="bar-list">${hBarChart(basinBars)}</div>
+        </div>
+      </div>
     </div>
     <div style="font-size:11px;color:#64748b;border-top:1px solid #1e293b;padding-top:12px">Coverage caveat: this demonstration holds a sample of KeNAWRUA's monitoring points, not a full national census. Grey "no data" markers mean the parameter was never recorded there — never read as "good."</div>`;
   const dashSel = document.getElementById('dash-basin-select');
   dashSel.innerHTML = '<option value="">All basins</option>' + BASINS.map(b => `<option value="${b}">${b}</option>`).join('');
   dashSel.value = basinFilter;
   dashSel.onchange = () => { basinFilter = dashSel.value; basinSelect.value = basinFilter; refresh(); renderDash(); };
+  [...document.querySelectorAll('.worst-row')].forEach(row => row.onclick = () => {
+    showView('map'); openSidePanel(activeSidePanel || 'layers');
+    selectSite(row.dataset.layer, row.dataset.id);
+  });
 }
+const POLL_SEVERE_C = '#ef4444', HEALTH_STRESSED_C = '#ef4444';
 
 // ---------------- attribute table (per layer, bottom-docked, pushes the map) ----------------
 function openTable(layerId) {
@@ -571,6 +726,10 @@ function refresh() {
   if (activeSidePanel === 'layers') renderLayersPanel();
   if (activeSidePanel === 'analytics') renderAnalyticsPanel();
   if (!document.getElementById('view-dash').hidden) renderDash();
+  // keep the detail panel's values in step with the slider, even when its site has no popup open
+  if (detailShown && document.getElementById('detail-panel').classList.contains('open')) {
+    updateDetailPanel(detailShown.layerId, detailShown.id);
+  }
 }
 
 refresh();
