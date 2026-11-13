@@ -139,7 +139,18 @@ L.control.zoom({ position: 'topright' }).addTo(map);
 function updateLabelVisibility() {
   document.getElementById('map').classList.toggle('hide-labels', map.getZoom() < 9);
 }
-map.on('zoomend', updateLabelVisibility);
+map.on('zoomend', () => { updateLabelVisibility(); declutterLabels(); });
+map.on('moveend', declutterLabels);
+// invalidateSize() (fired whenever a side panel opens/closes, the window resizes, or the map
+// becomes visible again after being hidden) repositions every marker without panning or
+// zooming — neither 'moveend' nor 'zoomend' fires for it, so the declutter pass would otherwise
+// go stale against the map's actual current layout.
+map.on('resize', declutterLabels);
+// Leaflet's own 'resize' event only fires when it detects an actual size delta, which it can
+// miss in practice (e.g. the very first invalidateSize() right after load, before the browser
+// has painted a final layout) — call this instead of a bare invalidateSize() so the declutter
+// pass is guaranteed to re-run regardless.
+function syncMapSize() { map.invalidateSize(); declutterLabels(); }
 
 // ---------------- basemaps ----------------
 const BASEMAPS = {
@@ -216,6 +227,43 @@ function drawMarkers() {
     const m = markerById[reopenPopup.layerId + ':' + reopenPopup.id];
     if (m) { m.openPopup(); popupShown = reopenPopup; } else { popupShown = null; }
   }
+  declutterLabels();
+}
+
+// Permanent site labels collide when two markers sit close together on screen (some NBO_River
+// citizen-science sites are only metres apart) — and because label width varies hugely with
+// name length ("MB02" vs "Illdungushu siana Wrua @ Nalengitomon"), comparing marker-to-marker
+// distance isn't enough: two markers can be far enough apart that they don't collide, while
+// their much-wider labels still overlap. So this measures each label's real rendered box
+// (after opening every tooltip so Leaflet lays them out) and keeps only non-overlapping ones —
+// the site with the longest reading history "wins" its label — closing the rest (their markers
+// and popups stay fully interactive either way).
+function declutterLabels() {
+  const items = [];
+  LAYERS.forEach(l => {
+    if (!layerOn[l.id]) return;
+    visible(l).forEach(s => {
+      const m = markerById[l.id + ':' + s.id];
+      if (m) items.push({ m, s, priority: s.n || 0 });
+    });
+  });
+  // open everything first (writes), then read every box (reads) — batched to avoid layout thrash
+  items.forEach(it => { if (!it.m.isTooltipOpen()) it.m.openTooltip(); });
+  items.forEach(it => {
+    const tt = it.m.getTooltip();
+    const el = tt && tt.getElement();
+    it.box = el ? el.getBoundingClientRect() : null;
+  });
+  items.sort((a, b) => b.priority - a.priority || a.s.name.localeCompare(b.s.name));
+  const kept = [];
+  const PAD = 2;
+  items.forEach(it => {
+    if (!it.box) return;
+    const b = it.box;
+    const collides = kept.some(k => !(b.right + PAD < k.left || k.right + PAD < b.left || b.bottom + PAD < k.top || k.bottom + PAD < b.top));
+    if (collides) it.m.closeTooltip();
+    else kept.push({ left: b.left, right: b.right, top: b.top, bottom: b.bottom });
+  });
 }
 
 function selectSite(layerId, id, opts = {}) {
@@ -592,14 +640,26 @@ function renderAnalyticsPanel() {
   const st = basinStats(basinFilter);
   const pollSegs = Object.entries(st.counts.pollution || {}).map(([k, v]) => ({ label: layerById('pollution').cat[k].label, value: v, color: layerById('pollution').cat[k].c }));
   const healthSegs = Object.entries(st.counts.health || {}).map(([k, v]) => ({ label: layerById('health').cat[k].label, value: v, color: layerById('health').cat[k].c }));
+  const pollActivity = monthlyActivity(layerById('pollution'), basinFilter);
+  const healthActivity = monthlyActivity(layerById('health'), basinFilter);
   document.getElementById('side-panel-body').innerHTML = `
-    <div class="stat-grid">
-      ${statCard('Sites shown', st.total)}
-      ${statCard('Pollution sites', st.perLayer.pollution)}
-      ${statCard('Health sites', st.perLayer.health)}
+    <div class="stat-grid stat-grid-3">
+      ${statCard('Sites shown', st.total, null, '#22d3ee')}
+      ${statCard('Pollution', st.perLayer.pollution, null, '#22d3ee')}
+      ${statCard('Health', st.perLayer.health, null, '#818cf8')}
     </div>
-    <div><div style="font-size:12px;font-weight:700;margin-bottom:8px">Nutrient Pollution</div>${donutChart(pollSegs)}</div>
-    <div><div style="font-size:12px;font-weight:700;margin-bottom:8px">River Health</div>${donutChart(healthSegs)}</div>
+    <div class="side-section">
+      <div class="side-section-title">Nutrient Pollution — category</div>
+      ${donutLabeled(pollSegs, { size: 180 })}
+      <div class="side-section-sub">Monitoring activity</div>
+      ${areaTrendChart(pollActivity, '#22d3ee')}
+    </div>
+    <div class="side-section">
+      <div class="side-section-title">River Health — category</div>
+      ${donutLabeled(healthSegs, { size: 180 })}
+      <div class="side-section-sub">Monitoring activity</div>
+      ${areaTrendChart(healthActivity, '#818cf8')}
+    </div>
     <div><button class="subbar-btn" id="analytics-expand" style="width:100%;justify-content:center"><span class="msym" style="font-size:16px">open_in_full</span><span>Full dashboard</span></button></div>
     <div class="hud-foot">Covers ${BASINS.length} basins · snapshot as of ${monthLabel(currentMonth())}, drag the time slider to change it.</div>`;
   document.getElementById('analytics-expand').onclick = () => showView('dash');
@@ -797,7 +857,7 @@ document.getElementById('nav-dash').onclick = () => showView('dash');
 
 ['side-panel', 'table-dock', 'detail-panel'].forEach(id => {
   document.getElementById(id).addEventListener('transitionend', e => {
-    if (e.propertyName === 'width' || e.propertyName === 'height') map.invalidateSize();
+    if (e.propertyName === 'width' || e.propertyName === 'height') syncMapSize();
   });
 });
 
@@ -806,7 +866,7 @@ function showView(v) {
   document.getElementById('view-dash').hidden = v !== 'dash';
   document.getElementById('nav-map').classList.toggle('on', v === 'map');
   document.getElementById('nav-dash').classList.toggle('on', v === 'dash');
-  if (v === 'dash') renderDash(); else setTimeout(() => map.invalidateSize(), 50);
+  if (v === 'dash') renderDash(); else setTimeout(syncMapSize, 50);
 }
 function refresh() {
   buildLegend(); drawMarkers();
@@ -823,5 +883,6 @@ function refresh() {
 refresh();
 openTable(LAYERS[0].id);
 updateLabelVisibility();
-window.addEventListener('resize', () => map.invalidateSize());
-setTimeout(() => map.invalidateSize(), 80);
+window.addEventListener('resize', syncMapSize);
+setTimeout(syncMapSize, 80);
+setTimeout(syncMapSize, 400); // second pass — covers fonts/webfont swap still reflowing after the first

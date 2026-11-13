@@ -157,6 +157,11 @@ input{font:inherit}
 /* basin analytics stats, shared between the side panel and the full dashboard —
    a left accent border + brighter, larger value makes these readable at a glance */
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat-grid-3{grid-template-columns:1fr 1fr 1fr}
+.side-section{display:flex;flex-direction:column;gap:2px}
+.side-section-title{font-size:12px;font-weight:700;margin-bottom:6px}
+.side-section-sub{font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 2px}
+.side-section .trend-chart-wrap{height:92px}
 .stat-card{background:linear-gradient(180deg,#0ea5e91f,#0209144d);border:1px solid var(--line-soft);border-left:3px solid var(--accent);border-radius:12px;padding:12px}
 .stat-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#9fb0c3;font-family:'JetBrains Mono',monospace}
 .stat-val{font-size:27px;font-weight:800;margin-top:3px;color:#fff}
