@@ -99,15 +99,41 @@ input{font:inherit}
 .time-play{flex:none;width:28px;height:28px;border-radius:50%;background:var(--accent);border:none;color:#02131a;
   display:flex;align-items:center;justify-content:center}
 .time-play:hover{background:var(--accent-light)}
+.time-cal-btn{flex:none;width:26px;height:26px;border-radius:7px;background:var(--panel);border:1px solid var(--line);color:var(--muted);
+  display:flex;align-items:center;justify-content:center}
+.time-cal-btn:hover{color:var(--accent-light);border-color:var(--accent)}
 .time-track-wrap{flex:1;min-width:0;display:flex;align-items:center}
 .time-slider{width:100%;appearance:none;height:4px;border-radius:2px;background:var(--line);outline:none;cursor:pointer}
 .time-slider::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent-light);border:2px solid #02131a;cursor:pointer}
 .time-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent-light);border:2px solid #02131a;cursor:pointer}
 .time-label{flex:none;font-size:12px;font-weight:700;color:var(--accent-light);min-width:76px;text-align:right}
 
+/* year/month jump popover, opened from either calendar icon */
+.time-cal-popover{position:absolute;top:44px;left:50%;transform:translateX(-50%);z-index:40;background:var(--panel);
+  border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 10px 30px #00000066;width:260px}
+.cal-year-select{width:100%;background:var(--panel-soft);color:var(--ink);border:1px solid var(--line);border-radius:8px;
+  padding:6px 8px;font-size:12px;margin-bottom:8px;outline:none}
+.cal-year-select option{background:var(--panel)}
+.cal-month-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.cal-month-btn{padding:7px 0;border-radius:7px;border:1px solid var(--line);background:var(--panel-soft);color:var(--muted);font-size:11px;font-weight:600}
+.cal-month-btn:hover:not([disabled]){border-color:var(--accent);color:#fff}
+.cal-month-btn.on{background:var(--accent);color:#02131a;border-color:var(--accent)}
+.cal-month-btn[disabled]{opacity:.3;cursor:not-allowed}
+
+/* Dashboard date filter — a chip that opens a dialog to pick either a single month or a
+   start/end range */
+.dash-date-popover{position:absolute;top:calc(100% + 8px);right:0;z-index:40;background:var(--panel);
+  border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 10px 30px #00000066;width:300px}
+.dash-date-tabs{display:flex;gap:6px;margin-bottom:10px}
+.dash-date-tab{flex:1;padding:7px 0;border-radius:8px;border:1px solid var(--line);background:var(--panel-soft);color:var(--muted);font-size:11.5px;font-weight:700;text-align:center}
+.dash-date-tab.on{background:var(--accent);color:#02131a;border-color:var(--accent)}
+.dash-date-range-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dash-date-col-label{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#64748b;margin-bottom:6px}
+.dash-date-range-cols .cal-month-grid{grid-template-columns:repeat(3,1fr)}
+
 /* basemap picker: a small horizontal strip bottom-left, opened from the rail icon */
 .basemap-picker{position:absolute;left:12px;bottom:14px;z-index:35;background:var(--panel);border:1px solid var(--line);
-  border-radius:12px;padding:6px;display:flex;gap:6px;box-shadow:0 10px 30px #00000066}
+  border-radius:12px;padding:6px;display:flex;flex-wrap:wrap;gap:6px;max-width:300px;box-shadow:0 10px 30px #00000066}
 .basemap-btn{padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel-soft);color:var(--muted);font-size:11px;font-weight:600;white-space:nowrap}
 .basemap-btn.on{background:var(--accent);color:#02131a;border-color:var(--accent)}
 
@@ -130,6 +156,9 @@ input{font:inherit}
 .icon-btn{width:26px;height:26px;border-radius:8px;background:#1e293b;border:none;color:var(--muted);display:flex;align-items:center;justify-content:center}
 .icon-btn:hover{color:#fff;background:#334155}
 
+.chip-clear-btn{display:flex;align-items:center;gap:5px;padding:0 12px;height:34px;border-radius:8px;border:1px solid #ef4444;background:#ef444414;color:#f87171;font-size:12px;font-weight:700}
+.chip-clear-btn:hover{background:#ef444426;color:#fca5a5}
+
 /* legend — always visible inside the map stage, never covered by the side panel or table dock */
 .legend{position:absolute;bottom:14px;right:12px;z-index:25;background:var(--panel);border:1px solid var(--line);border-radius:12px;
   padding:14px 16px;font-size:13px;display:flex;flex-direction:column;gap:10px;min-width:170px}
@@ -142,6 +171,11 @@ input{font:inherit}
 /* basin analytics stats, shared between the side panel and the full dashboard —
    a left accent border + brighter, larger value makes these readable at a glance */
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat-grid-3{grid-template-columns:1fr 1fr 1fr}
+.side-section{display:flex;flex-direction:column;gap:2px}
+.side-section-title{font-size:12px;font-weight:700;margin-bottom:6px}
+.side-section-sub{font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 2px}
+.side-section .trend-chart-wrap{height:92px}
 .stat-card{background:linear-gradient(180deg,#0ea5e91f,#0209144d);border:1px solid var(--line-soft);border-left:3px solid var(--accent);border-radius:12px;padding:12px}
 .stat-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#9fb0c3;font-family:'JetBrains Mono',monospace}
 .stat-val{font-size:27px;font-weight:800;margin-top:3px;color:#fff}
@@ -217,6 +251,27 @@ table.attr tbody tr.sel{background:#06b6d422}
 .dash-row-2-1{display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:start}
 .dash-row-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .dash-col-stack{display:flex;flex-direction:column;gap:20px}
+.dash-card-sub{font-size:10px;color:var(--muted2);margin-top:-8px;margin-bottom:10px;font-family:'JetBrains Mono',monospace}
+.dash-card-badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:1px}
+
+/* smooth area/line trend chart */
+.trend-chart-wrap{height:150px;width:100%}
+.trend-svg{width:100%;height:100%;display:block;overflow:visible}
+
+/* donut with external leader-line labels */
+.donut-labeled{display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:6px}
+.donut-labeled-svg{overflow:visible;max-width:100%}
+.donut-labeled-legend{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;font-size:11px;color:#94a3b8}
+.dl-leg-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:1px}
+.dl-leg-item b{color:#e2e8f0;font-weight:700}
+
+/* worst-sites list */
+.worst-row{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid var(--line-soft);font-size:12px;cursor:pointer}
+.worst-row:last-child{border-bottom:none}
+.worst-row:hover{background:#ffffff08}
+.worst-dot{width:9px;height:9px;border-radius:50%;flex:none}
+.worst-name{flex:1;font-weight:600;color:#e2e8f0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.worst-basin{color:var(--muted2);font-size:10px;flex:none}
 
 /* donut chart (CSS conic-gradient ring + center label + legend) */
 .donut-row{display:flex;align-items:center;gap:20px}
