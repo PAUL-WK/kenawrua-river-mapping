@@ -137,16 +137,24 @@ function dashToMonth() { return ALL_MONTHS[dashToIdx]; }
 function dashDateLabel() {
   return dashMode === 'single' ? monthLabel(dashToMonth()) : `${monthLabel(dashFromMonth())} – ${monthLabel(dashToMonth())}`;
 }
-// true once the user has narrowed the filter away from its "whole project" default — drives
-// whether the clear (×) button next to the date chip is shown at all
-function dashFilterActive() {
+// true once either the date filter has been narrowed away from "whole project", or a basin
+// filter is applied — drives whether the "Clear" pill is shown at all
+function dashDateFilterActive() {
   return dashMode === 'single' || dashFromIdx !== 0 || dashToIdx !== ALL_MONTHS.length - 1;
 }
-function clearDashDateFilter() {
+function dashFilterActive() {
+  return dashDateFilterActive() || basinFilter !== '';
+}
+// resets both the date filter and the basin filter — the basin select lives on both the map
+// view and the dashboard, so keep them in sync and refresh the map too
+function clearDashFilters() {
   dashMode = 'range';
   dashFromIdx = 0;
   dashToIdx = ALL_MONTHS.length - 1;
+  basinFilter = '';
+  basinSelect.value = '';
   closeDashDatePopover();
+  refresh();
   renderDash();
 }
 
@@ -798,7 +806,7 @@ function renderDash() {
           <span id="dash-date-label">${dashDateLabel()}</span>
           <div class="dash-date-popover" id="dash-date-popover" hidden></div>
         </div>
-        ${dashFilterActive() ? `<button class="chip-clear-btn" id="dash-date-clear" title="Clear date filter"><span class="msym" style="font-size:15px">filter_alt_off</span>Clear</button>` : ''}
+        ${dashFilterActive() ? `<button class="chip-clear-btn" id="dash-date-clear" title="Clear all filters"><span class="msym" style="font-size:15px">filter_alt_off</span>Clear</button>` : ''}
       </div>
     </div>
     <div class="dash-stat-grid">
@@ -862,7 +870,7 @@ function renderDash() {
     toggleDashDatePopover();
   };
   const dashDateClear = document.getElementById('dash-date-clear');
-  if (dashDateClear) dashDateClear.onclick = e => { e.stopPropagation(); clearDashDateFilter(); };
+  if (dashDateClear) dashDateClear.onclick = e => { e.stopPropagation(); clearDashFilters(); };
   [...document.querySelectorAll('.worst-row')].forEach(row => row.onclick = () => {
     showView('map'); openSidePanel(activeSidePanel || 'layers');
     selectSite(row.dataset.layer, row.dataset.id);
