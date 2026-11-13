@@ -1,6 +1,6 @@
 import './styles/app.css';
 import L from 'leaflet';
-import { LAYERS, BASINS, BASIN_EXTENTS, BASIN_COLOR, ALL_MONTHS, asOf, normBasin, layerById } from './layers.js';
+import { LAYERS, BASINS, BASIN_COLOR, ALL_MONTHS, asOf, normBasin, layerById } from './layers.js';
 
 const app = document.getElementById('app');
 app.innerHTML = `
@@ -110,7 +110,6 @@ let pageSize = 50;
 let headBuiltFor = null;
 let activeSidePanel = null;
 let tableOpen = false;
-let basinsOn = true;
 // only the first layer (Nutrient Pollution) is active by default — the legend below mirrors
 // whichever layer(s) are on, so it starts showing just one scale; switching layers on/off in
 // the Layers panel grows or shrinks it accordingly.
@@ -176,20 +175,6 @@ function buildBasemapPicker() {
 }
 buildBasemapPicker();
 
-// Approximate WRUA basin outlines, drawn over the real basemap for orientation.
-const basinLayer = L.layerGroup();
-if (basinsOn) basinLayer.addTo(map);
-const basinPane = map.createPane('basins'); basinPane.style.zIndex = 450;
-Object.entries(BASIN_EXTENTS).forEach(([b, pts]) => {
-  const c = BASIN_COLOR[b] || '#94a3b8';
-  basinLayer.addLayer(L.polygon(pts.map(p => [p[1], p[0]]), { pane: 'basins', color: c, weight: 1.6, dashArray: '5 4', fillColor: c, fillOpacity: 0.07, interactive: false }));
-  const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-  basinLayer.addLayer(L.marker([cy, cx], { pane: 'basins', interactive: false, icon: L.divIcon({ className: '', html: `<div style="font:700 11px Inter;letter-spacing:.12em;text-transform:uppercase;color:${c};text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 4px #fff">${b}</div>`, iconSize: null }) }));
-});
-function toggleBasins(on) {
-  basinsOn = on;
-  if (on) basinLayer.addTo(map); else map.removeLayer(basinLayer);
-}
 
 const leafletLayerGroup = {};
 LAYERS.forEach(l => { leafletLayerGroup[l.id] = L.layerGroup().addTo(map); });
@@ -338,21 +323,6 @@ function renderLayersPanel() {
   const body = document.getElementById('side-panel-body');
   body.innerHTML = '<div class="layer-rows" id="layer-rows"></div>';
   const rowsEl = document.getElementById('layer-rows');
-
-  const refGroup = document.createElement('div'); refGroup.className = 'layer-group-label'; refGroup.textContent = 'Reference';
-  rowsEl.appendChild(refGroup);
-  const basinRow = document.createElement('div'); basinRow.className = 'layer-row';
-  basinRow.innerHTML = `
-    <label>
-      <input type="checkbox" ${basinsOn ? 'checked' : ''}>
-      <span>
-        <span style="display:flex;align-items:center;gap:7px"><span class="layer-swatch" style="background:linear-gradient(135deg,#a78bfa,#34d399,#60a5fa,#fb923c,#f472b6)"></span><span class="layer-name">Basin boundaries</span></span>
-        <span class="layer-sub">Approximate WRUA basin outlines</span>
-      </span>
-    </label>
-    <span class="layer-count">${BASINS.length}</span>`;
-  basinRow.querySelector('input').onchange = e => toggleBasins(e.target.checked);
-  rowsEl.appendChild(basinRow);
 
   let lastGroup = null;
   LAYERS.forEach(l => {
