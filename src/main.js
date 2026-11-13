@@ -260,12 +260,18 @@ function selectSite(layerId, id, opts = {}) {
     drawMarkers();
     if (activeSidePanel === 'layers') renderLayersPanel();
   }
+  // The marker popup and the detail panel both show the same info — if the detail panel
+  // ("info window") is already open, opening the popup too is redundant clutter. In that case
+  // just flash the marker and zoom to it; the detail panel gets the update below instead.
+  const detailOpen = document.getElementById('detail-panel').classList.contains('open');
   const key = layerId + ':' + id, m = markerById[key];
   if (m) {
     const targetZoom = Math.max(map.getZoom(), 11);
     map.setView(m.getLatLng(), targetZoom);
-    m.openPopup();
-    popupShown = { layerId, id };
+    if (!detailOpen) {
+      m.openPopup();
+      popupShown = { layerId, id };
+    }
     flashMarker(m);
   }
   if (shouldOpenTable) {
@@ -274,7 +280,7 @@ function selectSite(layerId, id, opts = {}) {
   } else if (tableOpen) {
     openTable(layerId);
   }
-  if (document.getElementById('detail-panel').classList.contains('open')) {
+  if (detailOpen) {
     detailShown = { layerId, id };
     updateDetailPanel(layerId, id);
   }
@@ -367,6 +373,10 @@ function setSlider(idx) {
   sliderIdx = Math.max(0, Math.min(ALL_MONTHS.length - 1, idx));
   document.getElementById('time-slider').value = sliderIdx;
   updateTimeLabel();
+  // Moving the time slider (dragging or playing) shouldn't keep popping the marker popup back
+  // open on every redraw — close it once here so drawMarkers()'s "reopen whatever was showing"
+  // logic has nothing to reopen. The detail panel (if open) still tracks the slider via `refresh`.
+  if (popupShown) { map.closePopup(); popupShown = null; }
   refresh();
 }
 document.getElementById('time-slider').oninput = e => setSlider(+e.target.value);
