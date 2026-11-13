@@ -468,13 +468,101 @@ function monthlyActivity(layer, filter) {
   });
   return ALL_MONTHS.map(m => ({ month: m, label: monthLabel(m), value: counts[m] }));
 }
-function monthBarChart(items, color) {
-  const max = Math.max(1, ...items.map(i => i.value));
-  return `<div class="month-chart">${items.map((it, i) => `
-    <div class="month-chart-col" title="${it.label}: ${it.value}">
-      <div class="month-chart-bar" style="height:${Math.max(2, it.value / max * 100)}%;background:${color}"></div>
-      ${i % 6 === 0 ? `<div class="month-chart-lbl">${it.label}</div>` : ''}
-    </div>`).join('')}</div>`;
+// smooth filled area/line trend chart (Dashboard only) — inline SVG, stretches to its
+// container via preserveAspectRatio="none" so it sits in a plain CSS-height div
+let _chartUid = 0;
+function areaTrendChart(items, color) {
+  _chartUid++;
+  const W = 640, H = 170, padL = 40, padR = 10, padT = 12, padB = 22;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const n = items.length;
+  const maxV = Math.max(1, ...items.map(i => i.value));
+  const niceMax = Math.max(5, Math.ceil(maxV * 1.15 / 5) * 5);
+  const xAt = i => padL + (n <= 1 ? innerW / 2 : i / (n - 1) * innerW);
+  const yAt = v => padT + innerH - (v / niceMax) * innerH;
+  const pts = items.map((it, i) => [xAt(i), yAt(it.value)]);
+
+  // simple smoothing: quadratic-bezier through each point's midpoint to its neighbour
+  let line = `M ${pts[0][0]},${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+    line += ` Q ${x0},${y0} ${(x0 + x1) / 2},${(y0 + y1) / 2}`;
+  }
+  line += ` L ${pts[pts.length - 1][0]},${pts[pts.length - 1][1]}`;
+  const area = `${line} L ${pts[pts.length - 1][0]},${padT + innerH} L ${pts[0][0]},${padT + innerH} Z`;
+
+  const yTicks = 4;
+  const grid = Array.from({ length: yTicks + 1 }, (_, i) => {
+    const v = niceMax * i / yTicks, yy = yAt(v);
+    return `<line x1="${padL}" x2="${W - padR}" y1="${yy}" y2="${yy}" stroke="#94a3b8" stroke-opacity="0.12"/>
+            <text x="${padL - 6}" y="${yy + 3}" font-size="9" fill="#94a3b8" text-anchor="end">${Math.round(v)}</text>`;
+  }).join('');
+
+  const labelStep = Math.max(1, Math.round(n / 9));
+  const xLabels = items.map((it, i) => i % labelStep === 0
+    ? `<text x="${xAt(i)}" y="${H - 6}" font-size="8" fill="#94a3b8" text-anchor="middle">${it.label}</text>` : '').join('');
+
+  const markerStep = n <= 28 ? 1 : Math.ceil(n / 28);
+  const markers = pts.map((p, i) => i % markerStep === 0
+    ? `<circle cx="${p[0]}" cy="${p[1]}" r="2.4" fill="${color}" stroke="#0a0f1a" stroke-width="1.2"/>` : '').join('');
+
+  const gid = `trend-grad-${_chartUid}`;
+  return `<div class="trend-chart-wrap"><svg viewBox="0 0 ${W} ${H}" class="trend-svg" preserveAspectRatio="none">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.38"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    ${grid}
+    <path d="${area}" fill="url(#${gid})" stroke="none"/>
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    ${markers}
+    ${xLabels}
+  </svg></div>`;
+}
+
+// donut with external leader-line percentage labels, like the reference design — SVG arcs so
+// label geometry can be computed directly from each segment's angle
+function donutLabeled(segments, { size = 210, centerSub = 'sites' } = {}) {
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  const nonzero = segments.filter(s => s.value > 0);
+  const cx = size / 2, cy = size / 2;
+  const rOuter = size / 2 - 38, rInner = rOuter * 0.6;
+  const toRad = deg => (deg - 90) * Math.PI / 180;
+  const polar = (r, deg) => { const rad = toRad(deg); return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)]; };
+
+  let acc = 0;
+  const arcs = [], labels = [];
+  nonzero.forEach(seg => {
+    const startDeg = total ? acc / total * 360 : 0;
+    acc += seg.value;
+    const endDeg = total ? acc / total * 360 : 360;
+    const large = (endDeg - startDeg) > 180 ? 1 : 0;
+    const [ox1, oy1] = polar(rOuter, endDeg), [ox2, oy2] = polar(rOuter, startDeg);
+    const [ix1, iy1] = polar(rInner, endDeg), [ix2, iy2] = polar(rInner, startDeg);
+    arcs.push(`<path d="M ${ox1} ${oy1} A ${rOuter} ${rOuter} 0 ${large} 0 ${ox2} ${oy2} L ${ix2} ${iy2} A ${rInner} ${rInner} 0 ${large} 1 ${ix1} ${iy1} Z" fill="${seg.color}"/>`);
+
+    const midDeg = (startDeg + endDeg) / 2;
+    const pct = total ? (seg.value / total * 100) : 0;
+    if (pct >= 2) {
+      const [ex, ey] = polar(rOuter + 2, midDeg);
+      const [lx, ly] = polar(rOuter + 20, midDeg);
+      const onRight = Math.cos(toRad(midDeg)) >= 0;
+      labels.push(`
+        <line x1="${ex}" y1="${ey}" x2="${lx}" y2="${ly}" stroke="${seg.color}" stroke-width="1.2"/>
+        <circle cx="${lx}" cy="${ly}" r="2" fill="${seg.color}"/>
+        <text x="${lx + (onRight ? 6 : -6)}" y="${ly + 3.5}" font-size="10.5" font-weight="600" fill="#e2e8f0" text-anchor="${onRight ? 'start' : 'end'}">${seg.label}: ${pct.toFixed(0)}%</text>`);
+    }
+  });
+
+  return `<div class="donut-labeled">
+    <svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" class="donut-labeled-svg">
+      ${arcs.join('')}
+      ${labels.join('')}
+      <text x="${cx}" y="${cy - 3}" text-anchor="middle" font-size="22" font-weight="800" fill="#fff">${total}</text>
+      <text x="${cx}" y="${cy + 15}" text-anchor="middle" font-size="10" fill="#64748b">${centerSub}</text>
+    </svg>
+    <div class="donut-labeled-legend">${nonzero.map(s => `<span class="dl-leg-item"><span class="dl-leg-dot" style="background:${s.color}"></span>${s.label} <b>${s.value}</b></span>`).join('')}</div>
+  </div>`;
 }
 function precisionCounts(filter) {
   const sites = currentData(layerById('pollution')).filter(s => !filter || normBasin(s.basin) === filter);
@@ -542,23 +630,23 @@ function renderDash() {
     <div class="dash-row-2">
       <div class="dash-card">
         <div class="dash-card-title">Nutrient Pollution — category</div>
-        ${donutChart(pollSegs)}
+        ${donutLabeled(pollSegs)}
       </div>
       <div class="dash-card">
         <div class="dash-card-title">River Health — category</div>
-        ${donutChart(healthSegs)}
+        ${donutLabeled(healthSegs)}
       </div>
     </div>
     <div class="dash-row-2">
       <div class="dash-card">
         <div class="dash-card-title">Nutrient Pollution — monitoring activity</div>
         <div class="dash-card-sub">Readings recorded each month</div>
-        ${monthBarChart(pollActivity, '#22d3ee')}
+        ${areaTrendChart(pollActivity, '#22d3ee')}
       </div>
       <div class="dash-card">
         <div class="dash-card-title">River Health — monitoring activity</div>
         <div class="dash-card-sub">Readings recorded each month</div>
-        ${monthBarChart(healthActivity, '#818cf8')}
+        ${areaTrendChart(healthActivity, '#818cf8')}
       </div>
     </div>
     <div class="dash-row-2-1">
@@ -575,7 +663,7 @@ function renderDash() {
       <div class="dash-col-stack">
         <div class="dash-card">
           <div class="dash-card-title">Nutrient Pollution — reading precision</div>
-          ${donutChart(precSegs)}
+          ${donutLabeled(precSegs, { centerSub: 'sites' })}
         </div>
         <div class="dash-card">
           <div class="dash-card-title">Sites by basin</div>
