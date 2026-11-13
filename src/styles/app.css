@@ -156,6 +156,9 @@ input{font:inherit}
 .icon-btn{width:26px;height:26px;border-radius:8px;background:#1e293b;border:none;color:var(--muted);display:flex;align-items:center;justify-content:center}
 .icon-btn:hover{color:#fff;background:#334155}
 
+.chip-clear-btn{display:flex;align-items:center;gap:5px;padding:0 12px;height:34px;border-radius:8px;border:1px solid #ef4444;background:#ef444414;color:#f87171;font-size:12px;font-weight:700}
+.chip-clear-btn:hover{background:#ef444426;color:#fca5a5}
+
 /* legend — always visible inside the map stage, never covered by the side panel or table dock */
 .legend{position:absolute;bottom:14px;right:12px;z-index:25;background:var(--panel);border:1px solid var(--line);border-radius:12px;
   padding:14px 16px;font-size:13px;display:flex;flex-direction:column;gap:10px;min-width:170px}

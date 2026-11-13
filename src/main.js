@@ -798,7 +798,7 @@ function renderDash() {
           <span id="dash-date-label">${dashDateLabel()}</span>
           <div class="dash-date-popover" id="dash-date-popover" hidden></div>
         </div>
-        ${dashFilterActive() ? `<button class="icon-btn" id="dash-date-clear" title="Clear date filter"><span class="msym" style="font-size:16px">close</span></button>` : ''}
+        ${dashFilterActive() ? `<button class="chip-clear-btn" id="dash-date-clear" title="Clear date filter"><span class="msym" style="font-size:15px">filter_alt_off</span>Clear</button>` : ''}
       </div>
     </div>
     <div class="dash-stat-grid">
