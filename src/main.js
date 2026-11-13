@@ -10,7 +10,7 @@ app.innerHTML = `
       <div class="brand-icon"><span class="msym" style="font-size:18px">water_drop</span></div>
       <div>
         <div class="brand-name">HydroLens <b>Kenya</b></div>
-        <div class="brand-sub">WRUA &amp; Citizen-Science Monitoring</div>
+        <div class="brand-sub">Demonstration prototype for KeNAWRUA</div>
       </div>
     </div>
     <nav class="nav-tabs">
