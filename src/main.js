@@ -137,6 +137,18 @@ function dashToMonth() { return ALL_MONTHS[dashToIdx]; }
 function dashDateLabel() {
   return dashMode === 'single' ? monthLabel(dashToMonth()) : `${monthLabel(dashFromMonth())} – ${monthLabel(dashToMonth())}`;
 }
+// true once the user has narrowed the filter away from its "whole project" default — drives
+// whether the clear (×) button next to the date chip is shown at all
+function dashFilterActive() {
+  return dashMode === 'single' || dashFromIdx !== 0 || dashToIdx !== ALL_MONTHS.length - 1;
+}
+function clearDashDateFilter() {
+  dashMode = 'range';
+  dashFromIdx = 0;
+  dashToIdx = ALL_MONTHS.length - 1;
+  closeDashDatePopover();
+  renderDash();
+}
 
 // ---------------- basin select ----------------
 const basinSelect = document.getElementById('basin-select');
@@ -786,6 +798,7 @@ function renderDash() {
           <span id="dash-date-label">${dashDateLabel()}</span>
           <div class="dash-date-popover" id="dash-date-popover" hidden></div>
         </div>
+        ${dashFilterActive() ? `<button class="icon-btn" id="dash-date-clear" title="Clear date filter"><span class="msym" style="font-size:16px">close</span></button>` : ''}
       </div>
     </div>
     <div class="dash-stat-grid">
@@ -848,6 +861,8 @@ function renderDash() {
     if (e.target.closest('.dash-date-popover')) return; // clicks inside the dialog shouldn't re-toggle it
     toggleDashDatePopover();
   };
+  const dashDateClear = document.getElementById('dash-date-clear');
+  if (dashDateClear) dashDateClear.onclick = e => { e.stopPropagation(); clearDashDateFilter(); };
   [...document.querySelectorAll('.worst-row')].forEach(row => row.onclick = () => {
     showView('map'); openSidePanel(activeSidePanel || 'layers');
     selectSite(row.dataset.layer, row.dataset.id);
