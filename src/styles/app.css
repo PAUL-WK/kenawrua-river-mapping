@@ -122,7 +122,7 @@ input{font:inherit}
 
 /* basemap picker: a small horizontal strip bottom-left, opened from the rail icon */
 .basemap-picker{position:absolute;left:12px;bottom:14px;z-index:35;background:var(--panel);border:1px solid var(--line);
-  border-radius:12px;padding:6px;display:flex;gap:6px;box-shadow:0 10px 30px #00000066}
+  border-radius:12px;padding:6px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;box-shadow:0 10px 30px #00000066;max-width:320px}
 .basemap-btn{padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel-soft);color:var(--muted);font-size:11px;font-weight:600;white-space:nowrap}
 .basemap-btn.on{background:var(--accent);color:#02131a;border-color:var(--accent)}
 
