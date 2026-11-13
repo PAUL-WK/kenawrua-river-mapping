@@ -126,17 +126,16 @@ let popupShown = null;  // {layerId, id} | null
 function currentMonth() { return ALL_MONTHS[sliderIdx]; }
 function currentData(layer) { return asOf(layer.data, currentMonth()); }
 
-// Dashboard's own Year/Month date-range filter — independent of the map view's time slider.
-// "From"/"To" default to the full axis (i.e. no filtering) until the user narrows it.
+// Dashboard's own Year/Month date filter — independent of the map view's time slider.
+// Either a single month (from === to) or a start/end range, picked from a dialog opened off
+// the date chip. Defaults to the full axis (i.e. no filtering) until the user narrows it.
+let dashMode = 'range'; // 'single' | 'range'
 let dashFromIdx = 0;
 let dashToIdx = ALL_MONTHS.length - 1;
 function dashFromMonth() { return ALL_MONTHS[dashFromIdx]; }
 function dashToMonth() { return ALL_MONTHS[dashToIdx]; }
-function monthOptionsHtml(selected) {
-  const byYear = {};
-  ALL_MONTHS.forEach(m => { const y = m.slice(0, 4); (byYear[y] ||= []).push(m); });
-  return Object.entries(byYear).map(([y, months]) => `<optgroup label="${y}">${months.map(m =>
-    `<option value="${m}" ${m === selected ? 'selected' : ''}>${monthLabel(m)}</option>`).join('')}</optgroup>`).join('');
+function dashDateLabel() {
+  return dashMode === 'single' ? monthLabel(dashToMonth()) : `${monthLabel(dashFromMonth())} – ${monthLabel(dashToMonth())}`;
 }
 
 // ---------------- basin select ----------------
@@ -455,6 +454,106 @@ document.addEventListener('click', e => {
   }
 });
 
+// -------- Dashboard date filter dialog: single month OR a start/end range --------
+function buildDashMonthGrid(gridId, year, selectedIdx, onPick) {
+  const grid = document.getElementById(gridId);
+  if (!grid) return;
+  grid.innerHTML = MONTH_NAMES.map((nm, i) => {
+    const m = i + 1;
+    const ym = `${year}-${String(m).padStart(2, '0')}`;
+    const idx = ALL_MONTHS.indexOf(ym);
+    const on = idx === selectedIdx;
+    return `<button class="cal-month-btn ${on ? 'on' : ''}" ${idx === -1 ? 'disabled' : ''} data-idx="${idx}">${nm}</button>`;
+  }).join('');
+  [...grid.querySelectorAll('.cal-month-btn:not([disabled])')].forEach(b => b.onclick = () => onPick(+b.dataset.idx));
+}
+function dashYearOptions(selectedYear) {
+  const y0 = +ALL_MONTHS[0].slice(0, 4), y1 = +ALL_MONTHS[ALL_MONTHS.length - 1].slice(0, 4);
+  const years = []; for (let y = y0; y <= y1; y++) years.push(y);
+  return years.map(y => `<option value="${y}" ${y === selectedYear ? 'selected' : ''}>${y}</option>`).join('');
+}
+function renderDashDatePopoverBody() {
+  const body = document.getElementById('dash-date-body');
+  if (!body) return;
+  if (dashMode === 'single') {
+    const curY = +dashToMonth().slice(0, 4);
+    body.innerHTML = `
+      <select class="cal-year-select" id="dash-single-year">${dashYearOptions(curY)}</select>
+      <div class="cal-month-grid" id="dash-single-grid"></div>`;
+    const draw = y => buildDashMonthGrid('dash-single-grid', y, dashToIdx, idx => {
+      dashFromIdx = idx; dashToIdx = idx;
+      closeDashDatePopover();
+      renderDash();
+    });
+    draw(curY);
+    document.getElementById('dash-single-year').onchange = e => draw(+e.target.value);
+  } else {
+    const curFromY = +dashFromMonth().slice(0, 4), curToY = +dashToMonth().slice(0, 4);
+    body.innerHTML = `
+      <div class="dash-date-range-cols">
+        <div><div class="dash-date-col-label">Start</div>
+          <select class="cal-year-select" id="dash-range-from-year">${dashYearOptions(curFromY)}</select>
+          <div class="cal-month-grid" id="dash-range-from-grid"></div></div>
+        <div><div class="dash-date-col-label">End</div>
+          <select class="cal-year-select" id="dash-range-to-year">${dashYearOptions(curToY)}</select>
+          <div class="cal-month-grid" id="dash-range-to-grid"></div></div>
+      </div>
+      <button class="subbar-btn" id="dash-date-apply" style="width:100%;justify-content:center;margin-top:10px">Apply</button>`;
+    let pendingFrom = dashFromIdx, pendingTo = dashToIdx;
+    const drawFrom = y => buildDashMonthGrid('dash-range-from-grid', y, pendingFrom, idx => { pendingFrom = idx; drawFrom(y); });
+    const drawTo = y => buildDashMonthGrid('dash-range-to-grid', y, pendingTo, idx => { pendingTo = idx; drawTo(y); });
+    drawFrom(curFromY);
+    drawTo(curToY);
+    document.getElementById('dash-range-from-year').onchange = e => drawFrom(+e.target.value);
+    document.getElementById('dash-range-to-year').onchange = e => drawTo(+e.target.value);
+    document.getElementById('dash-date-apply').onclick = () => {
+      if (pendingFrom > pendingTo) { const t = pendingFrom; pendingFrom = pendingTo; pendingTo = t; }
+      dashFromIdx = pendingFrom; dashToIdx = pendingTo;
+      closeDashDatePopover();
+      renderDash();
+    };
+  }
+}
+function buildDashDatePopover() {
+  const pop = document.getElementById('dash-date-popover');
+  if (!pop) return;
+  // Clicks anywhere inside the dialog must never reach dash-date-btn's own toggle handler or
+  // the document-level "click outside closes it" listener. Relying on e.target.closest(...) in
+  // those outer handlers doesn't work here: picking a month rebuilds the grid's innerHTML mid-
+  // click, which detaches the clicked button from the tree before the event finishes bubbling,
+  // so closest() silently fails and the dialog slams shut on every pick. Stopping propagation
+  // right here is immune to that.
+  pop.onclick = e => e.stopPropagation();
+  pop.innerHTML = `
+    <div class="dash-date-tabs">
+      <button class="dash-date-tab ${dashMode === 'single' ? 'on' : ''}" data-mode="single">Single month</button>
+      <button class="dash-date-tab ${dashMode === 'range' ? 'on' : ''}" data-mode="range">Range</button>
+    </div>
+    <div id="dash-date-body"></div>`;
+  [...pop.querySelectorAll('.dash-date-tab')].forEach(b => b.onclick = () => {
+    dashMode = b.dataset.mode;
+    if (dashMode === 'single') dashFromIdx = dashToIdx; // collapse to the "to" month when switching modes
+    buildDashDatePopover();
+  });
+  renderDashDatePopoverBody();
+}
+function closeDashDatePopover() {
+  const pop = document.getElementById('dash-date-popover');
+  if (pop) pop.hidden = true;
+}
+function toggleDashDatePopover() {
+  const pop = document.getElementById('dash-date-popover');
+  if (!pop) return;
+  if (pop.hidden) { buildDashDatePopover(); pop.hidden = false; } else { closeDashDatePopover(); }
+}
+document.addEventListener('click', e => {
+  const pop = document.getElementById('dash-date-popover');
+  const btn = document.getElementById('dash-date-btn');
+  if (pop && !pop.hidden && !pop.contains(e.target) && !(btn && btn.contains(e.target))) {
+    closeDashDatePopover();
+  }
+});
+
 // ---------------- basin stats (shared by side panel + full dashboard) ----------------
 // `month` defaults to the global time slider's position (used by the map-view side panel);
 // the Dashboard passes its own independent date-range "to" month instead.
@@ -682,10 +781,10 @@ function renderDash() {
       <div><div class="dash-h1">Basin Analytics — ${basinFilter || 'All basins'}</div><div class="dash-p">Snapshot as of ${monthLabel(toM)}, range ${rangeLabel}. Demonstration prototype built from WRUA and citizen-science monitoring records shared with KeNAWRUA.</div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <div class="chipbar"><span class="msym" style="font-size:16px;color:#06b6d4">travel_explore</span><select id="dash-basin-select"></select></div>
-        <div class="chipbar"><span class="msym" style="font-size:16px;color:#06b6d4">calendar_month</span>
-          <select id="dash-from-month">${monthOptionsHtml(fromM)}</select>
-          <span style="color:#64748b;font-size:11px">–</span>
-          <select id="dash-to-month">${monthOptionsHtml(toM)}</select>
+        <div class="chipbar" id="dash-date-btn" style="position:relative;cursor:pointer">
+          <span class="msym" style="font-size:16px;color:#06b6d4">calendar_month</span>
+          <span id="dash-date-label">${dashDateLabel()}</span>
+          <div class="dash-date-popover" id="dash-date-popover" hidden></div>
         </div>
       </div>
     </div>
@@ -745,17 +844,9 @@ function renderDash() {
   dashSel.innerHTML = '<option value="">All basins</option>' + BASINS.map(b => `<option value="${b}">${b}</option>`).join('');
   dashSel.value = basinFilter;
   dashSel.onchange = () => { basinFilter = dashSel.value; basinSelect.value = basinFilter; refresh(); renderDash(); };
-  document.getElementById('dash-from-month').onchange = e => {
-    let idx = ALL_MONTHS.indexOf(e.target.value);
-    if (idx > dashToIdx) idx = dashToIdx; // keep from <= to
-    dashFromIdx = idx;
-    renderDash();
-  };
-  document.getElementById('dash-to-month').onchange = e => {
-    let idx = ALL_MONTHS.indexOf(e.target.value);
-    if (idx < dashFromIdx) idx = dashFromIdx; // keep to >= from
-    dashToIdx = idx;
-    renderDash();
+  document.getElementById('dash-date-btn').onclick = e => {
+    if (e.target.closest('.dash-date-popover')) return; // clicks inside the dialog shouldn't re-toggle it
+    toggleDashDatePopover();
   };
   [...document.querySelectorAll('.worst-row')].forEach(row => row.onclick = () => {
     showView('map'); openSidePanel(activeSidePanel || 'layers');
