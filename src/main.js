@@ -126,6 +126,19 @@ let popupShown = null;  // {layerId, id} | null
 function currentMonth() { return ALL_MONTHS[sliderIdx]; }
 function currentData(layer) { return asOf(layer.data, currentMonth()); }
 
+// Dashboard's own Year/Month date-range filter — independent of the map view's time slider.
+// "From"/"To" default to the full axis (i.e. no filtering) until the user narrows it.
+let dashFromIdx = 0;
+let dashToIdx = ALL_MONTHS.length - 1;
+function dashFromMonth() { return ALL_MONTHS[dashFromIdx]; }
+function dashToMonth() { return ALL_MONTHS[dashToIdx]; }
+function monthOptionsHtml(selected) {
+  const byYear = {};
+  ALL_MONTHS.forEach(m => { const y = m.slice(0, 4); (byYear[y] ||= []).push(m); });
+  return Object.entries(byYear).map(([y, months]) => `<optgroup label="${y}">${months.map(m =>
+    `<option value="${m}" ${m === selected ? 'selected' : ''}>${monthLabel(m)}</option>`).join('')}</optgroup>`).join('');
+}
+
 // ---------------- basin select ----------------
 const basinSelect = document.getElementById('basin-select');
 BASINS.forEach(b => { const o = document.createElement('option'); o.value = b; o.textContent = b; basinSelect.appendChild(o); });
@@ -443,8 +456,10 @@ document.addEventListener('click', e => {
 });
 
 // ---------------- basin stats (shared by side panel + full dashboard) ----------------
-function basinStats(filter) {
-  const layerSets = LAYERS.map(l => currentData(l).filter(s => !filter || normBasin(s.basin) === filter));
+// `month` defaults to the global time slider's position (used by the map-view side panel);
+// the Dashboard passes its own independent date-range "to" month instead.
+function basinStats(filter, month = currentMonth()) {
+  const layerSets = LAYERS.map(l => asOf(l.data, month).filter(s => !filter || normBasin(s.basin) === filter));
   const total = layerSets.reduce((a, s) => a + s.length, 0);
   const counts = {};
   LAYERS.forEach((l, i) => {
@@ -482,21 +497,24 @@ function donutChart(segments) {
     <div class="donut-legend">${segments.map(s => `<div class="donut-legend-item"><span class="donut-legend-dot" style="background:${s.color}"></span><span class="donut-legend-label">${s.label}</span><span class="donut-legend-val">${s.value}</span></div>`).join('')}</div>
   </div>`;
 }
-function basinCounts(filter) {
+function basinCounts(filter, month = currentMonth()) {
   return BASINS.map(b => ({
     label: b,
-    value: LAYERS.reduce((a, l) => a + currentData(l).filter(s => normBasin(s.basin) === b && (!filter || normBasin(s.basin) === filter)).length, 0),
+    value: LAYERS.reduce((a, l) => a + asOf(l.data, month).filter(s => normBasin(s.basin) === b && (!filter || normBasin(s.basin) === filter)).length, 0),
     color: BASIN_COLOR[b] || '#94a3b8'
   })).sort((a, b) => b.value - a.value);
 }
 // per-month reading counts (actual readings that month, not the slider's lookback) — shows
-// when each programme's monitoring actually ran, as a small bar chart
-function monthlyActivity(layer, filter) {
-  const counts = Object.fromEntries(ALL_MONTHS.map(m => [m, 0]));
+// when each programme's monitoring actually ran, as a small bar chart. Restricted to
+// [fromMonth, toMonth] when given (the Dashboard's own date-range filter); defaults to the
+// full axis, which is what the map-view side panel still wants.
+function monthlyActivity(layer, filter, fromMonth = ALL_MONTHS[0], toMonth = ALL_MONTHS[ALL_MONTHS.length - 1]) {
+  const months = ALL_MONTHS.filter(m => m >= fromMonth && m <= toMonth);
+  const counts = Object.fromEntries(months.map(m => [m, 0]));
   layer.data.filter(s => !filter || normBasin(s.basin) === filter).forEach(s => {
-    s.readings.forEach(rd => { counts[rd.month]++; });
+    s.readings.forEach(rd => { if (counts[rd.month] !== undefined) counts[rd.month]++; });
   });
-  return ALL_MONTHS.map(m => ({ month: m, label: monthLabel(m), value: counts[m] }));
+  return months.map(m => ({ month: m, label: monthLabel(m), value: counts[m] }));
 }
 // smooth filled area/line trend chart (Dashboard only) — inline SVG, stretches to its
 // container via preserveAspectRatio="none" so it sits in a plain CSS-height div
@@ -594,15 +612,15 @@ function donutLabeled(segments, { size = 210, centerSub = 'sites' } = {}) {
     <div class="donut-labeled-legend">${nonzero.map(s => `<span class="dl-leg-item"><span class="dl-leg-dot" style="background:${s.color}"></span>${s.label} <b>${s.value}</b></span>`).join('')}</div>
   </div>`;
 }
-function precisionCounts(filter) {
-  const sites = currentData(layerById('pollution')).filter(s => !filter || normBasin(s.basin) === filter);
+function precisionCounts(filter, month = currentMonth()) {
+  const sites = asOf(layerById('pollution').data, month).filter(s => !filter || normBasin(s.basin) === filter);
   let instrument = 0, band = 0;
   sites.forEach(s => { if (s.precision === 'band') band++; else instrument++; });
   return [{ label: 'Instrument', value: instrument, color: '#22d3ee' }, { label: 'Band (semi-quantitative)', value: band, color: '#a78bfa' }];
 }
-function worstSites(layer, filter, n = 6) {
+function worstSites(layer, filter, month = currentMonth(), n = 6) {
   const worstKey = layer.id === 'pollution' ? 'severe' : 'stressed';
-  return currentData(layer).filter(s => !filter || normBasin(s.basin) === filter)
+  return asOf(layer.data, month).filter(s => !filter || normBasin(s.basin) === filter)
     .filter(s => s._reading.category === worstKey)
     .sort((a, b) => b.n - a.n).slice(0, n);
 }
@@ -648,19 +666,28 @@ function renderAnalyticsPanel() {
 }
 
 function renderDash() {
-  const st = basinStats(basinFilter);
+  const toM = dashToMonth(), fromM = dashFromMonth();
+  const st = basinStats(basinFilter, toM);
   const pollSegs = Object.entries(st.counts.pollution || {}).map(([k, v]) => ({ label: layerById('pollution').cat[k].label, value: v, color: layerById('pollution').cat[k].c }));
   const healthSegs = Object.entries(st.counts.health || {}).map(([k, v]) => ({ label: layerById('health').cat[k].label, value: v, color: layerById('health').cat[k].c }));
-  const basinBars = basinCounts(basinFilter).map(b => ({ ...b, label: b.label.length > 18 ? b.label.slice(0, 16) + '…' : b.label }));
-  const precSegs = precisionCounts(basinFilter);
-  const pollActivity = monthlyActivity(layerById('pollution'), basinFilter);
-  const healthActivity = monthlyActivity(layerById('health'), basinFilter);
-  const worstPoll = worstSites(layerById('pollution'), basinFilter);
-  const worstHealth = worstSites(layerById('health'), basinFilter);
+  const basinBars = basinCounts(basinFilter, toM).map(b => ({ ...b, label: b.label.length > 18 ? b.label.slice(0, 16) + '…' : b.label }));
+  const precSegs = precisionCounts(basinFilter, toM);
+  const pollActivity = monthlyActivity(layerById('pollution'), basinFilter, fromM, toM);
+  const healthActivity = monthlyActivity(layerById('health'), basinFilter, fromM, toM);
+  const worstPoll = worstSites(layerById('pollution'), basinFilter, toM);
+  const worstHealth = worstSites(layerById('health'), basinFilter, toM);
+  const rangeLabel = fromM === toM ? monthLabel(toM) : `${monthLabel(fromM)} – ${monthLabel(toM)}`;
   document.getElementById('dash-wrap').innerHTML = `
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
-      <div><div class="dash-h1">Basin Analytics — ${basinFilter || 'All basins'}</div><div class="dash-p">Snapshot as of ${monthLabel(currentMonth())}. Demonstration prototype built from WRUA and citizen-science monitoring records shared with KeNAWRUA.</div></div>
-      <div class="chipbar"><span class="msym" style="font-size:16px;color:#06b6d4">travel_explore</span><select id="dash-basin-select"></select></div>
+      <div><div class="dash-h1">Basin Analytics — ${basinFilter || 'All basins'}</div><div class="dash-p">Snapshot as of ${monthLabel(toM)}, range ${rangeLabel}. Demonstration prototype built from WRUA and citizen-science monitoring records shared with KeNAWRUA.</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="chipbar"><span class="msym" style="font-size:16px;color:#06b6d4">travel_explore</span><select id="dash-basin-select"></select></div>
+        <div class="chipbar"><span class="msym" style="font-size:16px;color:#06b6d4">calendar_month</span>
+          <select id="dash-from-month">${monthOptionsHtml(fromM)}</select>
+          <span style="color:#64748b;font-size:11px">–</span>
+          <select id="dash-to-month">${monthOptionsHtml(toM)}</select>
+        </div>
+      </div>
     </div>
     <div class="dash-stat-grid">
       ${statCard('Total sites shown', st.total, null, '#22d3ee')}
@@ -682,12 +709,12 @@ function renderDash() {
     <div class="dash-row-2">
       <div class="dash-card">
         <div class="dash-card-title">Nutrient Pollution — monitoring activity</div>
-        <div class="dash-card-sub">Readings recorded each month</div>
+        <div class="dash-card-sub">Readings recorded each month · ${rangeLabel}</div>
         ${areaTrendChart(pollActivity, '#22d3ee')}
       </div>
       <div class="dash-card">
         <div class="dash-card-title">River Health — monitoring activity</div>
-        <div class="dash-card-sub">Readings recorded each month</div>
+        <div class="dash-card-sub">Readings recorded each month · ${rangeLabel}</div>
         ${areaTrendChart(healthActivity, '#818cf8')}
       </div>
     </div>
@@ -718,6 +745,18 @@ function renderDash() {
   dashSel.innerHTML = '<option value="">All basins</option>' + BASINS.map(b => `<option value="${b}">${b}</option>`).join('');
   dashSel.value = basinFilter;
   dashSel.onchange = () => { basinFilter = dashSel.value; basinSelect.value = basinFilter; refresh(); renderDash(); };
+  document.getElementById('dash-from-month').onchange = e => {
+    let idx = ALL_MONTHS.indexOf(e.target.value);
+    if (idx > dashToIdx) idx = dashToIdx; // keep from <= to
+    dashFromIdx = idx;
+    renderDash();
+  };
+  document.getElementById('dash-to-month').onchange = e => {
+    let idx = ALL_MONTHS.indexOf(e.target.value);
+    if (idx < dashFromIdx) idx = dashFromIdx; // keep to >= from
+    dashToIdx = idx;
+    renderDash();
+  };
   [...document.querySelectorAll('.worst-row')].forEach(row => row.onclick = () => {
     showView('map'); openSidePanel(activeSidePanel || 'layers');
     selectSite(row.dataset.layer, row.dataset.id);
