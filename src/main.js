@@ -717,24 +717,99 @@ function areaTrendChart(items, color) {
   </svg></div>`;
 }
 
-// ---- per-site trend row shown in the attribute table (bottom drawer) for the selected point ----
-function siteSeries(site, key) {
-  return site.readings.filter(rd => rd[key] != null).map(rd => ({ label: monthLabel(rd.month), value: rd[key] }));
+// ---- per-site trend chart shown in the bottom drawer for the selected point ----
+// All of a site's parameters are drawn as separate lines on one shared chart — each toggleable
+// via the legend chips below it — rather than one chart per parameter, so they can be compared
+// directly. The parameters don't share real units (mg/L, NTU, pH…), so each line is scaled to
+// its own range (the y-axis reads "% of that line's own range") instead of one shared y-axis,
+// which would flatten the smaller-magnitude lines to nothing; the legend chips carry the actual
+// last-reading values so the real numbers are never lost.
+function multiTrendChart(dateLabels, seriesDefs) {
+  _chartUid++;
+  const W = 640, H = 220, padL = 40, padR = 12, padT = 14, padB = 24;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const n = dateLabels.length;
+  const xAt = i => padL + (n <= 1 ? innerW / 2 : i / (n - 1) * innerW);
+
+  const yTicks = 4;
+  const grid = Array.from({ length: yTicks + 1 }, (_, i) => {
+    const yy = padT + innerH - (i / yTicks) * innerH;
+    return `<line x1="${padL}" x2="${W - padR}" y1="${yy}" y2="${yy}" stroke="#94a3b8" stroke-opacity="0.12"/>
+            <text x="${padL - 7}" y="${yy + 3}" font-size="9" fill="#94a3b8" text-anchor="end">${Math.round(i / yTicks * 100)}%</text>`;
+  }).join('');
+  const axes = `<line x1="${padL}" x2="${padL}" y1="${padT}" y2="${padT + innerH}" stroke="#94a3b8" stroke-opacity="0.3"/>
+    <line x1="${padL}" x2="${W - padR}" y1="${padT + innerH}" y2="${padT + innerH}" stroke="#94a3b8" stroke-opacity="0.3"/>`;
+
+  const labelStep = Math.max(1, Math.round(n / 9));
+  const xLabels = dateLabels.map((lb, i) => i % labelStep === 0
+    ? `<text x="${xAt(i)}" y="${H - 7}" font-size="8" fill="#94a3b8" text-anchor="middle">${lb}</text>` : '').join('');
+
+  const markerStep = n <= 28 ? 1 : Math.ceil(n / 28);
+  const seriesSvg = seriesDefs.map(sd => {
+    const maxV = Math.max(1e-6, ...sd.values.filter(v => v != null).map(v => Math.abs(v)));
+    const niceMax = maxV * 1.15;
+    const yAt = v => padT + innerH - (v / niceMax) * innerH;
+    // break the line into separate smoothed runs across any gaps (months with no reading)
+    // instead of bridging them, so missing data reads as a gap rather than a straight guess
+    const runs = [];
+    let cur = [];
+    sd.values.forEach((v, i) => {
+      if (v == null) { if (cur.length > 1) runs.push(cur); cur = []; }
+      else cur.push([xAt(i), yAt(v)]);
+    });
+    if (cur.length > 1) runs.push(cur);
+    const linePath = runs.map(smoothPath).join(' ');
+    const markers = sd.values.map((v, i) => (v != null && i % markerStep === 0)
+      ? `<circle cx="${xAt(i)}" cy="${yAt(v)}" r="2.6" fill="#e9edf5" stroke="${sd.color}" stroke-width="1.4"/>` : '').join('');
+    return `<g class="trend-series" data-key="${sd.key}">
+      <path d="${linePath}" fill="none" stroke="${sd.color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      ${markers}
+    </g>`;
+  }).join('');
+
+  return `<div class="trend-chart-wrap"><svg viewBox="0 0 ${W} ${H}" class="trend-svg" preserveAspectRatio="none">
+    ${grid}
+    ${axes}
+    ${seriesSvg}
+    ${xLabels}
+  </svg></div>`;
+}
+// the legend doubles as the show/hide control: clicking a chip toggles its series' line+markers
+// (wired up right after this markup is inserted — see renderTrendDock/updateDetailPanel callers)
+function trendLegend(seriesDefs) {
+  return `<div class="trend-legend">${seriesDefs.map(sd => {
+    const last = [...sd.values].reverse().find(v => v != null);
+    const lastTxt = last == null ? '–' : last.toFixed(sd.decimals) + (sd.unit ? ' ' + sd.unit : '');
+    return `<button class="trend-chip" data-key="${sd.key}" style="--chip-color:${sd.color}">
+      <span class="chip-dot"></span>${sd.label} <span class="chip-val">${lastTxt}</span>
+    </button>`;
+  }).join('')}</div>`;
+}
+function wireTrendLegend(root) {
+  root.querySelectorAll('.trend-chip').forEach(chip => {
+    chip.onclick = () => {
+      chip.classList.toggle('off');
+      const key = chip.dataset.key;
+      const series = root.querySelector(`.trend-series[data-key="${CSS.escape(key)}"]`);
+      if (series) series.classList.toggle('series-hidden', chip.classList.contains('off'));
+    };
+  });
 }
 function siteTrendPanel(site, layer) {
   const metrics = layer.id === 'pollution'
-    ? [['nitrate', 'Nitrate-N (mg/L)', '#22d3ee'], ['phosphate', 'Phosphate-P (mg/L)', '#a78bfa'], ['turbidity', 'Turbidity (NTU)', '#f59e0b']]
-    : [['pH', 'pH', '#22d3ee'], ['DO', 'Dissolved oxygen (mg/L)', '#818cf8']];
-  const cards = metrics.map(([key, label, color]) => {
-    const series = siteSeries(site, key);
-    const body = series.length
-      ? areaTrendChart(series, color)
-      : `<div style="padding:24px 0;text-align:center;color:#64748b;font-size:11px">No readings for this parameter</div>`;
-    return `<div class="mini-trend-card"><div class="mini-trend-title">${label}</div>${body}</div>`;
-  }).join('');
+    ? [['nitrate', 'Nitrate-N', 'mg/L', 2, '#22d3ee'], ['phosphate', 'Phosphate-P', 'mg/L', 3, '#a78bfa'], ['turbidity', 'Turbidity', 'NTU', 0, '#f59e0b']]
+    : [['pH', 'pH', '', 1, '#22d3ee'], ['DO', 'Dissolved oxygen', 'mg/L', 1, '#818cf8']];
+  const dateLabels = site.readings.map(rd => monthLabel(rd.month));
+  const seriesDefs = metrics.map(([key, label, unit, decimals, color]) => ({
+    key, label, unit, decimals, color, values: site.readings.map(rd => rd[key] ?? null)
+  }));
+  const hasData = seriesDefs.some(sd => sd.values.some(v => v != null));
+  const body = hasData
+    ? multiTrendChart(dateLabels, seriesDefs) + trendLegend(seriesDefs)
+    : `<div style="padding:24px 0;text-align:center;color:#64748b;font-size:11px">No readings for this site</div>`;
   return `<div class="site-trend-wrap">
     <div class="site-trend-head">Trend over time — ${site.name} <span style="color:#64748b;font-weight:500">(${site.n} reading${site.n === 1 ? '' : 's'}, ${site.first} → ${site.last})</span></div>
-    <div class="mini-trend-grid">${cards}</div>
+    ${body}
   </div>`;
 }
 
@@ -1068,9 +1143,11 @@ function renderTrendDock() {
   document.getElementById('table-icon').textContent = layer.id === 'pollution' ? 'water_drop' : 'water';
   document.getElementById('table-title').textContent = 'Trend over time';
   document.getElementById('table-count').textContent = '';
-  document.getElementById('dock-trend').innerHTML = s
+  const dockTrendEl = document.getElementById('dock-trend');
+  dockTrendEl.innerHTML = s
     ? siteTrendPanel(s, layer)
     : `<div style="padding:24px;text-align:center;color:#64748b;font-size:12px">This site has no reading yet as of ${monthLabel(currentMonth())}.</div>`;
+  wireTrendLegend(dockTrendEl);
 }
 
 document.getElementById('rail-layers').onclick = () => toggleSidePanel('layers');

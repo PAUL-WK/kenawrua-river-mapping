@@ -213,10 +213,16 @@ table.attr td{padding:6px 10px;border-bottom:1px solid #1e293b66;white-space:now
 table.attr tbody tr:hover{background:#0ea5e914}
 table.attr tbody tr.sel{background:#06b6d422}
 .site-trend-head{font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:12px}
-.mini-trend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
-.mini-trend-card{background:#111827;border:1px solid #1e293b;border-radius:10px;padding:12px}
-.mini-trend-title{font-size:10.5px;font-weight:700;color:#94a3b8;margin-bottom:4px}
-.mini-trend-card .trend-chart-wrap{height:140px}
+.site-trend-wrap .trend-chart-wrap{height:260px;background:#111827;border:1px solid #1e293b;border-radius:10px;padding:10px}
+.trend-series{transition:opacity .15s ease}
+.trend-series.series-hidden{opacity:0;pointer-events:none}
+.trend-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.trend-chip{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#111827;border:1px solid #1e293b;color:var(--ink);font-size:11px;font-weight:600;transition:opacity .15s ease,border-color .15s ease}
+.trend-chip:hover{border-color:var(--chip-color)}
+.trend-chip .chip-dot{width:8px;height:8px;border-radius:50%;background:var(--chip-color);flex:none}
+.trend-chip .chip-val{color:#94a3b8;font-weight:500;font-family:'JetBrains Mono',monospace;font-size:10.5px}
+.trend-chip.off{opacity:.4}
+.trend-chip.off .chip-dot{background:#475569}
 .badge{padding:2px 7px;border-radius:5px;font-size:10px}
 .filter-row th{padding:4px 8px;border-bottom:1px solid var(--line);background:#020813cc}
 .col-filter{width:100%;background:var(--panel-soft);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:10.5px;color:var(--ink)}
