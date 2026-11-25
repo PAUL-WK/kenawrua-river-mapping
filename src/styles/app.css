@@ -222,7 +222,11 @@ table.attr td{padding:6px 10px;border-bottom:1px solid #1e293b66;white-space:now
 table.attr tbody tr:hover{background:#0ea5e914}
 table.attr tbody tr.sel{background:#06b6d422}
 .site-trend-head{font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:12px}
-.site-trend-wrap .trend-chart-wrap{height:260px;background:#111827;border:1px solid #1e293b;border-radius:10px;padding:10px}
+/* the chart's viewBox is stretched to fit this box (preserveAspectRatio="none"), so letting it
+   span a very wide, short drawer distorts the line/markers into a flattened, taffy-pulled look —
+   capping the width and giving it more height keeps the box closer to the chart's own proportions */
+.site-trend-wrap{max-width:900px;margin:0 auto}
+.site-trend-wrap .trend-chart-wrap{height:320px;background:#111827;border:1px solid #1e293b;border-radius:10px;padding:10px}
 .trend-series{transition:opacity .15s ease}
 .trend-series.series-hidden{opacity:0;pointer-events:none}
 .trend-legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
