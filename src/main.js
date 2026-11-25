@@ -74,11 +74,13 @@ app.innerHTML = `
                 <span class="table-count" id="table-count"></span>
               </div>
               <div style="display:flex;align-items:center;gap:8px">
+                <button class="table-back-btn" id="table-back" hidden><span class="msym" style="font-size:15px">arrow_back</span>Attribute table</button>
                 <input class="table-search" id="table-search" placeholder="Search…">
                 <button class="table-close" id="table-close"><span class="msym" style="font-size:15px">expand_more</span>Hide</button>
               </div>
             </div>
-            <div class="table-scroll scrollbar"><table class="attr"><thead><tr id="thead-row"></tr><tr id="filter-row" class="filter-row"></tr></thead><tbody id="tbody"></tbody></table></div>
+            <div class="table-scroll scrollbar" id="table-scroll"><table class="attr"><thead><tr id="thead-row"></tr><tr id="filter-row" class="filter-row"></tr></thead><tbody id="tbody"></tbody></table></div>
+            <div class="dock-trend scrollbar" id="dock-trend" hidden></div>
             <div class="table-pagination" id="table-pagination"></div>
           </div>
         </div>
@@ -103,7 +105,7 @@ app.innerHTML = `
 let basinFilter = '';
 let activeTableLayer = LAYERS[0].id;
 let selectedId = null;
-let selectedLayerId = null; // which layer selectedId belongs to — guards the attribute-table trend row below
+let selectedLayerId = null; // which layer selectedId belongs to
 let sortKey = null, sortDir = 1;
 let columnFilters = {};
 let currentPage = 1;
@@ -111,6 +113,10 @@ let pageSize = 50;
 let headBuiltFor = null;
 let activeSidePanel = null;
 let tableOpen = false;
+// the bottom drawer shows either the attribute table or one site's trend charts, never both —
+// 'trend' is entered only via the "Show trend" button in the point-details side panel
+let dockMode = 'table';
+let trendShown = null; // { layerId, id } of the site whose trend is showing, when dockMode === 'trend'
 // only the first layer (Nutrient Pollution) is active by default — the legend below mirrors
 // whichever layer(s) are on, so it starts showing just one scale; switching layers on/off in
 // the Layers panel grows or shrinks it accordingly.
@@ -313,6 +319,9 @@ function selectSite(layerId, id, opts = {}) {
   if (shouldOpenTable) {
     openTable(layerId);
     openTableDock();
+  } else if (tableOpen && dockMode === 'trend') {
+    trendShown = { layerId, id };
+    renderTrendDock();
   } else if (tableOpen) {
     openTable(layerId);
   }
@@ -346,7 +355,11 @@ function updateDetailPanel(layerId, id) {
     return;
   }
   document.getElementById('detail-panel-title').textContent = s.name;
-  document.getElementById('detail-panel-body').innerHTML = layer.detail(s);
+  document.getElementById('detail-panel-body').innerHTML = layer.detail(s) + `
+    <div class="detail-trend-cta">
+      <button class="trend-cta-btn" id="detail-trend-btn"><span class="msym" style="font-size:16px">show_chart</span>Show trend</button>
+    </div>`;
+  document.getElementById('detail-trend-btn').onclick = () => openTrendDock(layerId, id);
 }
 
 window.hlOpenDetail = function (layerId, id) {
@@ -943,7 +956,18 @@ function renderTableHead(layer) {
 function matchesColumnFilters(s) {
   return Object.entries(columnFilters).every(([k, val]) => !val || String(s[k] ?? '').toLowerCase().includes(val.toLowerCase()));
 }
+// the bottom drawer's header/search/pagination chrome is shared between its two modes —
+// this just shows/hides the right pieces for whichever one is active
+function setDockModeUI() {
+  const isTrend = dockMode === 'trend';
+  document.getElementById('table-scroll').hidden = isTrend;
+  document.getElementById('table-pagination').hidden = isTrend;
+  document.getElementById('table-search').hidden = isTrend;
+  document.getElementById('dock-trend').hidden = !isTrend;
+  document.getElementById('table-back').hidden = !isTrend;
+}
 function renderTableBody() {
+  setDockModeUI();
   const layer = layerById(activeTableLayer);
   document.getElementById('table-icon').textContent = layer.id === 'pollution' ? 'water_drop' : 'water';
   document.getElementById('table-title').textContent = layer.label + ' — attribute table';
@@ -964,13 +988,9 @@ function renderTableBody() {
   const colspan = layer.columns.length + 1;
   document.getElementById('tbody').innerHTML = pageRows.map(s => {
     const sel = s.id === selectedId && selectedLayerId === activeTableLayer;
-    const row = `<tr class="${sel ? 'sel' : ''}" data-id="${s.id}">
+    return `<tr class="${sel ? 'sel' : ''}" data-id="${s.id}">
     <td class="action-cell"><button class="row-zoom-btn" title="Zoom to feature"><span class="msym" style="font-size:15px">center_focus_strong</span></button></td>
     ${layer.columns.map(([k]) => `<td>${layer.cell(s, k)}</td>`).join('')}</tr>`;
-    // selecting a point shows its own history right under its row — "the trend over time" for
-    // that site, rather than only the single current-month snapshot the rest of the row shows
-    const trendRow = sel ? `<tr class="site-trend-row"><td colspan="${colspan}">${siteTrendPanel(s, layer)}</td></tr>` : '';
-    return row + trendRow;
   }).join('')
     || `<tr><td colspan="${colspan}" style="text-align:center;color:#64748b;padding:18px">No rows match the current filters.</td></tr>`;
   [...document.querySelectorAll('#tbody tr[data-id]')].forEach(tr => {
@@ -1014,6 +1034,8 @@ function toggleSidePanel(which) {
   if (activeSidePanel === which) closeSidePanel(); else openSidePanel(which);
 }
 function openTableDock() {
+  dockMode = 'table';
+  trendShown = null;
   tableOpen = true;
   document.getElementById('table-dock').classList.add('open');
   setRailOn();
@@ -1024,7 +1046,32 @@ function closeTableDock() {
   document.getElementById('table-dock').classList.remove('open');
   setRailOn();
 }
-function toggleTableDock() { tableOpen ? closeTableDock() : openTableDock(); }
+// clicking the rail icon while the drawer is showing the trend switches it back to the
+// attribute table (rather than closing it) — closing only happens from the table view itself
+function toggleTableDock() { (tableOpen && dockMode === 'table') ? closeTableDock() : openTableDock(); }
+
+// opens the bottom drawer in "trend" mode for one site, replacing the attribute table —
+// entered from the "Show trend" button in the point-details side panel
+function openTrendDock(layerId, id) {
+  dockMode = 'trend';
+  trendShown = { layerId, id };
+  tableOpen = true;
+  document.getElementById('table-dock').classList.add('open');
+  setRailOn();
+  renderTrendDock();
+}
+function renderTrendDock() {
+  setDockModeUI();
+  const { layerId, id } = trendShown;
+  const layer = layerById(layerId);
+  const s = currentData(layer).find(x => x.id === id);
+  document.getElementById('table-icon').textContent = layer.id === 'pollution' ? 'water_drop' : 'water';
+  document.getElementById('table-title').textContent = 'Trend over time';
+  document.getElementById('table-count').textContent = '';
+  document.getElementById('dock-trend').innerHTML = s
+    ? siteTrendPanel(s, layer)
+    : `<div style="padding:24px;text-align:center;color:#64748b;font-size:12px">This site has no reading yet as of ${monthLabel(currentMonth())}.</div>`;
+}
 
 document.getElementById('rail-layers').onclick = () => toggleSidePanel('layers');
 document.getElementById('rail-analytics').onclick = () => toggleSidePanel('analytics');
@@ -1032,6 +1079,7 @@ document.getElementById('rail-table').onclick = () => toggleTableDock();
 document.getElementById('rail-basemap').onclick = () => { document.getElementById('basemap-picker').hidden = !document.getElementById('basemap-picker').hidden; };
 document.getElementById('side-panel-close').onclick = () => closeSidePanel();
 document.getElementById('table-close').onclick = () => closeTableDock();
+document.getElementById('table-back').onclick = () => openTableDock();
 document.getElementById('table-search').oninput = () => { currentPage = 1; renderTableBody(); };
 document.getElementById('nav-map').onclick = () => showView('map');
 document.getElementById('nav-dash').onclick = () => showView('dash');
