@@ -53,9 +53,11 @@ app.innerHTML = `
         <div class="time-bar" id="time-bar">
           <button class="time-play" id="time-play" title="Play / pause"><span class="msym" id="time-play-icon" style="font-size:18px">play_arrow</span></button>
           <button class="time-cal-btn" id="time-cal-left" title="Jump to a specific month"><span class="msym" style="font-size:16px">calendar_month</span></button>
+          <button class="time-step-btn" id="time-step-back" title="Previous month"><span class="msym" style="font-size:18px">chevron_left</span></button>
           <div class="time-track-wrap">
             <input type="range" id="time-slider" class="time-slider" min="0" max="${ALL_MONTHS.length - 1}" step="1" value="${ALL_MONTHS.length - 1}">
           </div>
+          <button class="time-step-btn" id="time-step-fwd" title="Next month"><span class="msym" style="font-size:18px">chevron_right</span></button>
           <button class="time-cal-btn" id="time-cal-right" title="Jump to a specific month"><span class="msym" style="font-size:16px">calendar_month</span></button>
           <div class="time-label mono" id="time-label"></div>
           <div class="time-cal-popover" id="time-cal-popover" hidden></div>
@@ -422,6 +424,8 @@ function setSlider(idx) {
   sliderIdx = Math.max(0, Math.min(ALL_MONTHS.length - 1, idx));
   document.getElementById('time-slider').value = sliderIdx;
   updateTimeLabel();
+  document.getElementById('time-step-back').disabled = sliderIdx <= 0;
+  document.getElementById('time-step-fwd').disabled = sliderIdx >= ALL_MONTHS.length - 1;
   // Moving the time slider (dragging or playing) shouldn't keep popping the marker popup back
   // open on every redraw — close it once here so drawMarkers()'s "reopen whatever was showing"
   // logic has nothing to reopen. The detail panel (if open) still tracks the slider via `refresh`.
@@ -429,6 +433,8 @@ function setSlider(idx) {
   refresh();
 }
 document.getElementById('time-slider').oninput = e => setSlider(+e.target.value);
+document.getElementById('time-step-back').onclick = () => setSlider(sliderIdx - 1);
+document.getElementById('time-step-fwd').onclick = () => setSlider(sliderIdx + 1);
 function stopPlaying() {
   playing = false;
   clearInterval(playTimer);
@@ -445,6 +451,8 @@ function startPlaying() {
 }
 document.getElementById('time-play').onclick = () => { playing ? stopPlaying() : startPlaying(); };
 updateTimeLabel();
+document.getElementById('time-step-back').disabled = sliderIdx <= 0;
+document.getElementById('time-step-fwd').disabled = sliderIdx >= ALL_MONTHS.length - 1;
 
 // -------- year/month jump popover, opened from the calendar icon on either edge of the track --------
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -805,7 +813,7 @@ function siteTrendPanel(site, layer) {
   }));
   const hasData = seriesDefs.some(sd => sd.values.some(v => v != null));
   const body = hasData
-    ? multiTrendChart(dateLabels, seriesDefs) + trendLegend(seriesDefs)
+    ? trendLegend(seriesDefs) + multiTrendChart(dateLabels, seriesDefs)
     : `<div style="padding:24px 0;text-align:center;color:#64748b;font-size:11px">No readings for this site</div>`;
   return `<div class="site-trend-wrap">
     <div class="site-trend-head">Trend over time — ${site.name} <span style="color:#64748b;font-weight:500">(${site.n} reading${site.n === 1 ? '' : 's'}, ${site.first} → ${site.last})</span></div>
