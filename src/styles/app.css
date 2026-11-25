@@ -14,6 +14,11 @@ body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-sy
 [hidden]{display:none!important}
 .mono{font-family:'JetBrains Mono',monospace}
 .msym{font-family:'Material Symbols Outlined';font-weight:400;font-size:20px;line-height:1;vertical-align:middle;-webkit-font-smoothing:antialiased}
+/* icon glyphs render from plain text via ligatures ("travel_explore", "layers"…) — keep that
+   text invisible (but still laid out, so nothing jumps) until the font is confirmed loaded; see
+   the inline script in index.html that adds .fonts-ready */
+.msym{opacity:0;transition:opacity .12s ease}
+.fonts-ready .msym{opacity:1}
 .scrollbar::-webkit-scrollbar{width:7px;height:7px}
 .scrollbar::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
 .scrollbar::-webkit-scrollbar-track{background:transparent}

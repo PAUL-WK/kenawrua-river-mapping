@@ -6,7 +6,28 @@
 <title>HydroLens Kenya — KeNAWRUA Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL@20..48,100..700,0..1&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Material Symbols requested at the one weight/opsz/fill the app actually uses (not the full
+     variable-axis range) — a much smaller file to fetch, which matters since this is the font
+     whose ligature fallback text (see the script below) is visible while it loads -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL@20,400,0&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+  // The icon font renders its glyphs from plain text ("travel_explore", "layers", …) via
+  // ligatures, so with the stylesheet's default font-display:swap the raw ligature names flash
+  // on screen for a moment before the font loads in. Hide icon text (see .msym in app.css) until
+  // the font is ready, or 1.5s passes — whichever comes first, so a slow/blocked font never
+  // leaves icons permanently blank.
+  (function () {
+    var reveal = function () { document.documentElement.classList.add('fonts-ready'); };
+    if (document.fonts && document.fonts.load) {
+      Promise.race([
+        document.fonts.load("20px 'Material Symbols Outlined'").catch(function () {}),
+        new Promise(function (r) { setTimeout(r, 1500); })
+      ]).then(reveal);
+    } else {
+      reveal();
+    }
+  })();
+</script>
 </head>
 <body>
   <div id="app"></div>
