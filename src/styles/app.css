@@ -206,6 +206,13 @@ table.attr th:hover{color:var(--accent-light)}
 table.attr td{padding:6px 10px;border-bottom:1px solid #1e293b66;white-space:nowrap}
 table.attr tbody tr:hover{background:#0ea5e914}
 table.attr tbody tr.sel{background:#06b6d422}
+.site-trend-row td{padding:0;white-space:normal}
+.site-trend-wrap{padding:14px 16px;background:#0b1220;border-top:1px solid #1e293b;border-bottom:2px solid #06b6d433}
+.site-trend-head{font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:10px}
+.mini-trend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.mini-trend-card{background:#111827;border:1px solid #1e293b;border-radius:10px;padding:10px}
+.mini-trend-title{font-size:10.5px;font-weight:700;color:#94a3b8;margin-bottom:4px}
+.mini-trend-card .trend-chart-wrap{height:84px}
 .badge{padding:2px 7px;border-radius:5px;font-size:10px}
 .filter-row th{padding:4px 8px;border-bottom:1px solid var(--line);background:#020813cc}
 .col-filter{width:100%;background:var(--panel-soft);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:10.5px;color:var(--ink)}

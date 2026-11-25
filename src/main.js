@@ -103,6 +103,7 @@ app.innerHTML = `
 let basinFilter = '';
 let activeTableLayer = LAYERS[0].id;
 let selectedId = null;
+let selectedLayerId = null; // which layer selectedId belongs to — guards the attribute-table trend row below
 let sortKey = null, sortDir = 1;
 let columnFilters = {};
 let currentPage = 1;
@@ -288,6 +289,7 @@ function declutterLabels() {
 function selectSite(layerId, id, opts = {}) {
   const shouldOpenTable = opts.openTable !== false;
   selectedId = id;
+  selectedLayerId = layerId;
   if (!layerOn[layerId]) {
     layerOn[layerId] = true;
     buildLegend();
@@ -687,6 +689,27 @@ function areaTrendChart(items, color) {
   </svg></div>`;
 }
 
+// ---- per-site trend row shown in the attribute table (bottom drawer) for the selected point ----
+function siteSeries(site, key) {
+  return site.readings.filter(rd => rd[key] != null).map(rd => ({ label: monthLabel(rd.month), value: rd[key] }));
+}
+function siteTrendPanel(site, layer) {
+  const metrics = layer.id === 'pollution'
+    ? [['nitrate', 'Nitrate-N (mg/L)', '#22d3ee'], ['phosphate', 'Phosphate-P (mg/L)', '#a78bfa'], ['turbidity', 'Turbidity (NTU)', '#f59e0b']]
+    : [['pH', 'pH', '#22d3ee'], ['DO', 'Dissolved oxygen (mg/L)', '#818cf8']];
+  const cards = metrics.map(([key, label, color]) => {
+    const series = siteSeries(site, key);
+    const body = series.length
+      ? areaTrendChart(series, color)
+      : `<div style="padding:24px 0;text-align:center;color:#64748b;font-size:11px">No readings for this parameter</div>`;
+    return `<div class="mini-trend-card"><div class="mini-trend-title">${label}</div>${body}</div>`;
+  }).join('');
+  return `<div class="site-trend-wrap">
+    <div class="site-trend-head">Trend over time — ${site.name} <span style="color:#64748b;font-weight:500">(${site.n} reading${site.n === 1 ? '' : 's'}, ${site.first} → ${site.last})</span></div>
+    <div class="mini-trend-grid">${cards}</div>
+  </div>`;
+}
+
 // donut with external leader-line percentage labels, like the reference design — SVG arcs so
 // label geometry can be computed directly from each segment's angle
 function donutLabeled(segments, { size = 210, centerSub = 'sites' } = {}) {
@@ -923,10 +946,18 @@ function renderTableBody() {
   const start = (currentPage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
   document.getElementById('table-count').textContent = (total === 0 ? 0 : start + 1) + '–' + Math.min(start + pageSize, total) + ' of ' + total + ' rows';
-  document.getElementById('tbody').innerHTML = pageRows.map(s => `<tr class="${s.id === selectedId ? 'sel' : ''}" data-id="${s.id}">
+  const colspan = layer.columns.length + 1;
+  document.getElementById('tbody').innerHTML = pageRows.map(s => {
+    const sel = s.id === selectedId && selectedLayerId === activeTableLayer;
+    const row = `<tr class="${sel ? 'sel' : ''}" data-id="${s.id}">
     <td class="action-cell"><button class="row-zoom-btn" title="Zoom to feature"><span class="msym" style="font-size:15px">center_focus_strong</span></button></td>
-    ${layer.columns.map(([k]) => `<td>${layer.cell(s, k)}</td>`).join('')}</tr>`).join('')
-    || `<tr><td colspan="${layer.columns.length + 1}" style="text-align:center;color:#64748b;padding:18px">No rows match the current filters.</td></tr>`;
+    ${layer.columns.map(([k]) => `<td>${layer.cell(s, k)}</td>`).join('')}</tr>`;
+    // selecting a point shows its own history right under its row — "the trend over time" for
+    // that site, rather than only the single current-month snapshot the rest of the row shows
+    const trendRow = sel ? `<tr class="site-trend-row"><td colspan="${colspan}">${siteTrendPanel(s, layer)}</td></tr>` : '';
+    return row + trendRow;
+  }).join('')
+    || `<tr><td colspan="${colspan}" style="text-align:center;color:#64748b;padding:18px">No rows match the current filters.</td></tr>`;
   [...document.querySelectorAll('#tbody tr[data-id]')].forEach(tr => {
     tr.onclick = () => selectSite(layer.id, tr.dataset.id);
     const btn = tr.querySelector('.row-zoom-btn');
